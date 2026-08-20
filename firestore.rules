@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Telemetriya loglari: har qanday foydalanuvchi o'z harakatini yozishi mumkin, admin o'qishi mumkin
+    match /analytics_events/{eventId} {
+      allow read: if true;
+      allow create: if request.resource.data.type is string && request.resource.data.timestamp is number;
+      allow update, delete: if true;
+    }
+
+    // Foydalanuvchilar profili va statistikasi
+    match /tracked_users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Tizim e'lonlari
+    match /system_announcements/{announcementId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

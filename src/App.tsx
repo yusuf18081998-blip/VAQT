@@ -138,10 +138,19 @@ export default function App() {
   // --- Secret Super Admin State & Telemetry ---
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [logoClickCount, setLogoClickCount] = useState<number>(0);
-  const [systemAnnouncement, setSystemAnnouncement] = useState<SystemAnnouncement | null>(() => {
-    return AnalyticsTracker.getAnnouncement();
-  });
+  const [systemAnnouncement, setSystemAnnouncement] = useState<SystemAnnouncement | null>(null);
   const [isAnnouncementDismissed, setIsAnnouncementDismissed] = useState<boolean>(false);
+
+  // E'lonlarni Firestore dan real vaqtda tinglash
+  useEffect(() => {
+    const unsub = AnalyticsTracker.subscribeAnnouncement((ann) => {
+      setSystemAnnouncement(ann);
+      if (ann && ann.active) {
+        setIsAnnouncementDismissed(false);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Saytga kirishni telemetriyaga yozish (Visit tracking)
   useEffect(() => {

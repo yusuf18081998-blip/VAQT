@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "AnalyticsEvent": {
+      "title": "AnalyticsEvent",
+      "type": "object",
+      "description": "Real-time user actions and telemetry logs",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "city": { "type": "string" },
+        "country": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "details": { "type": "string" },
+        "device": { "type": "string" },
+        "browser": { "type": "string" }
+      },
+      "required": ["id", "type", "userName", "userEmail", "timestamp"]
+    },
+    "TrackedUser": {
+      "title": "TrackedUser",
+      "type": "object",
+      "description": "Aggregated stats for real visitors",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "picture": { "type": "string" },
+        "city": { "type": "string" },
+        "country": { "type": "string" },
+        "firstSeen": { "type": "number" },
+        "lastActive": { "type": "number" },
+        "totalPomodoros": { "type": "number" },
+        "focusMinutes": { "type": "number" },
+        "treesPlanted": { "type": "number" },
+        "tasksCompleted": { "type": "number" },
+        "isOnline": { "type": "boolean" },
+        "device": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "lastActive"]
+    },
+    "SystemAnnouncement": {
+      "title": "SystemAnnouncement",
+      "type": "object",
+      "description": "Global admin broadcast banner",
+      "properties": {
+        "id": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "message", "type", "createdAt", "active"]
+    }
+  },
+  "firestore": {
+    "/analytics_events/{eventId}": {
+      "schema": "AnalyticsEvent",
+      "description": "Real-time stream of all user actions"
+    },
+    "/tracked_users/{userId}": {
+      "schema": "TrackedUser",
+      "description": "Real unique users accessing the site"
+    },
+    "/system_announcements/{announcementId}": {
+      "schema": "SystemAnnouncement",
+      "description": "Site-wide announcements created by admin"
+    }
+  }
+}

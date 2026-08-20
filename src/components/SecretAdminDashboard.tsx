@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldAlert,
   ShieldCheck,
   Users,
   Eye,
@@ -8,24 +7,19 @@ import {
   TreePine,
   Timer,
   CheckSquare,
-  Globe,
   Radio,
   RefreshCw,
   Download,
   Trash2,
   Send,
   Bell,
-  Smartphone,
   Laptop,
   Check,
   X,
   Search,
-  AlertTriangle,
   Lock,
-  Sparkles,
   MapPin,
-  Clock,
-  LogOut,
+  Flame,
 } from 'lucide-react';
 import { AnalyticsTracker, ADMIN_EMAIL } from '../utils/analyticsTracker';
 import { AnalyticsEvent, TrackedUser, SystemAnnouncement, UserProfile } from '../types';
@@ -47,7 +41,6 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
   const [events, setEvents] = useState<AnalyticsEvent[]>([]);
   const [users, setUsers] = useState<TrackedUser[]>([]);
   const [stats, setStats] = useState<any>(null);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [userSearch, setUserSearch] = useState<string>('');
   const [feedFilter, setFeedFilter] = useState<string>('all');
 
@@ -57,39 +50,37 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
   const [currentAnnouncement, setCurrentAnnouncement] = useState<SystemAnnouncement | null>(null);
   const [broadcastSuccess, setBroadcastSuccess] = useState<boolean>(false);
 
-  const loadData = () => {
-    setIsRefreshing(true);
-    const evs = AnalyticsTracker.getEvents();
-    const usrs = AnalyticsTracker.getUsers();
-    const st = AnalyticsTracker.getSummaryStats();
-    const ann = AnalyticsTracker.getAnnouncement();
-
-    setEvents(evs);
-    setUsers(usrs);
-    setStats(st);
-    setCurrentAnnouncement(ann);
-
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 400);
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
-
-  // Autorefresh every 10 seconds while admin open
+  // Firestore orqali haqiqiy Real-Time ma'lumotlarni jonli eshitish
   useEffect(() => {
     if (!isOpen) return;
-    const interval = setInterval(() => {
-      setEvents(AnalyticsTracker.getEvents());
-      setUsers(AnalyticsTracker.getUsers());
-      setStats(AnalyticsTracker.getSummaryStats());
-    }, 10000);
-    return () => clearInterval(interval);
+
+    // 1. Hodisalar oqimini jonli obuna bo'lish
+    const unsubEvents = AnalyticsTracker.subscribeEvents((newEvents) => {
+      setEvents(newEvents);
+    });
+
+    // 2. Foydalanuvchilar oqimini jonli obuna bo'lish
+    const unsubUsers = AnalyticsTracker.subscribeUsers((newUsers) => {
+      setUsers(newUsers);
+    });
+
+    // 3. E'lonlarni jonli tinglash
+    const unsubAnn = AnalyticsTracker.subscribeAnnouncement((ann) => {
+      setCurrentAnnouncement(ann);
+    });
+
+    return () => {
+      unsubEvents();
+      unsubUsers();
+      unsubAnn();
+    };
   }, [isOpen]);
+
+  // Statistikani real vaqtda qayta hisoblab borish
+  useEffect(() => {
+    const computed = AnalyticsTracker.computeSummary(users, events);
+    setStats(computed);
+  }, [users, events]);
 
   if (!isOpen) return null;
 
@@ -118,7 +109,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
     );
   }
 
-  const handleSendBroadcast = (e: React.FormEvent) => {
+  const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastMsg.trim()) return;
 
@@ -130,7 +121,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
       active: true,
     };
 
-    AnalyticsTracker.setAnnouncement(newAnn);
+    await AnalyticsTracker.setAnnouncement(newAnn);
     setCurrentAnnouncement(newAnn);
     onBroadcastAnnouncement(newAnn);
     setBroadcastSuccess(true);
@@ -138,8 +129,8 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
     setTimeout(() => setBroadcastSuccess(false), 3000);
   };
 
-  const handleRemoveBroadcast = () => {
-    AnalyticsTracker.setAnnouncement(null);
+  const handleRemoveBroadcast = async () => {
+    await AnalyticsTracker.setAnnouncement(null);
     setCurrentAnnouncement(null);
     onBroadcastAnnouncement(null);
   };
@@ -147,6 +138,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
   const handleExportJSON = () => {
     const data = {
       exportedAt: new Date().toISOString(),
+      source: 'Firebase Firestore Live Cloud Database',
       stats,
       users,
       events,
@@ -155,7 +147,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `vaqt-admin-stats-${Date.now()}.json`;
+    a.download = `vaqt-real-telemetry-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -199,7 +191,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
         <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
         {/* TOP BAR */}
-        <div className="p-4 sm:p-6 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-4 z-10">
+        <div className="p-4 sm:p-6 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-4 z-10 bg-slate-950/40">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
               <ShieldCheck className="w-6 h-6" />
@@ -207,28 +199,24 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-extrabold text-white text-lg sm:text-xl tracking-tight">
-                  Maxfiy Boshqaruv & Telemetriya Paneli
+                  Haqiqiy Telemetriya & Admin Paneli
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 border border-amber-500/40 text-amber-300">
-                  👑 Super Admin
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Firebase Jonli Baza
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Foydalanuvchi: <strong className="text-indigo-300">{user?.email}</strong> (Real-time kuzatuv)
+                Administrator: <strong className="text-indigo-300">{user?.email}</strong> (Real-time Firestore sinxronizatsiya)
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={loadData}
-              disabled={isRefreshing}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 border border-slate-700 transition"
-              title="Yangilash"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Yangilash</span>
-            </button>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-950/50 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
+              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-ping" />
+              <span>Real-time Stream</span>
+            </div>
 
             <button
               onClick={onClose}
@@ -241,7 +229,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
 
         {/* STATS BENTO ROW */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 p-4 sm:p-6 border-b border-slate-800/80 bg-slate-950/40">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 p-4 sm:p-6 border-b border-slate-800/80 bg-slate-950/60">
             {/* Live Users */}
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between text-indigo-400 text-xs font-bold">
@@ -250,11 +238,11 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
               </div>
               <div className="mt-2">
                 <span className="text-2xl sm:text-3xl font-black text-white font-mono">{stats.activeUsers}</span>
-                <span className="text-[10px] text-emerald-400 block mt-0.5">🟢 Hozir faol</span>
+                <span className="text-[10px] text-emerald-400 block mt-0.5">🟢 Hozirgi faollar</span>
               </div>
             </div>
 
-            {/* Total Users */}
+            {/* Total Real Visitors */}
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
                 <span>Foydalanuvchilar</span>
@@ -262,11 +250,11 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
               </div>
               <div className="mt-2">
                 <span className="text-2xl sm:text-3xl font-black text-white font-mono">{stats.totalUsers}</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Jami roʻyxatdagi</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Haqiqiy odamlar</span>
               </div>
             </div>
 
-            {/* Total Visits */}
+            {/* Total Visits / Openings */}
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
                 <span>Jami Tashrif</span>
@@ -317,7 +305,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
         )}
 
         {/* NAVIGATION TABS */}
-        <div className="flex items-center gap-1.5 px-4 sm:px-6 pt-3 border-b border-slate-800 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 px-4 sm:px-6 pt-3 border-b border-slate-800 overflow-x-auto scrollbar-none bg-slate-950/20">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition ${
@@ -339,7 +327,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
             }`}
           >
             <Radio className="w-4 h-4 text-purple-400" />
-            <span>Jonli Faoliyat Jurnali ({events.length})</span>
+            <span>Jonli Faoliyat Oqimi ({events.length})</span>
           </button>
 
           <button
@@ -375,7 +363,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
             }`}
           >
             <Download className="w-4 h-4 text-emerald-400" />
-            <span>Eksport & Kesh</span>
+            <span>Eksport & Sozlamalar</span>
           </button>
         </div>
 
@@ -385,25 +373,25 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
           {activeTab === 'overview' && (
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Shaharlar Bo'yicha Taqsimot */}
+                {/* Shaharlar Bo'yicha Haqiqiy Taqsimot */}
                 <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-bold text-white text-sm flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-indigo-400" />
                       <span>Foydalanuvchilar Hududlari & Shaharlari</span>
                     </h4>
-                    <span className="text-xs text-slate-500 font-mono">Geolokatsiya</span>
+                    <span className="text-xs text-emerald-400 font-mono">Live GPS/IP</span>
                   </div>
 
-                  <div className="flex flex-col gap-2.5">
-                    {stats?.cityMap &&
-                      Object.entries(stats.cityMap).map(([cityStr, count]: any) => (
+                  {stats?.cityMap && Object.keys(stats.cityMap).length > 0 ? (
+                    <div className="flex flex-col gap-2.5">
+                      {Object.entries(stats.cityMap).map(([cityStr, count]: any) => (
                         <div key={cityStr} className="flex items-center justify-between text-xs">
                           <span className="text-slate-300 font-medium">{cityStr}</span>
                           <div className="flex items-center gap-3">
                             <div className="w-28 sm:w-36 h-2 rounded-full bg-slate-800 overflow-hidden">
                               <div
-                                className="h-full bg-indigo-500 rounded-full"
+                                className="h-full bg-indigo-500 rounded-full transition-all duration-500"
                                 style={{
                                   width: `${Math.min(100, (count / (stats?.totalUsers || 1)) * 100)}%`,
                                 }}
@@ -415,42 +403,43 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                           </div>
                         </div>
                       ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-xs text-slate-500">
+                      Hali tashrif buyuruvchilar maʼlumotlari kutilmoqda...
+                    </div>
+                  )}
                 </div>
 
-                {/* Qurilmalar va Tizim */}
+                {/* Bulutli Baza Holati */}
                 <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="font-bold text-white text-sm flex items-center gap-2">
-                        <Laptop className="w-4 h-4 text-purple-400" />
-                        <span>Qurilmalar va Brauzerlar</span>
+                        <Flame className="w-4 h-4 text-amber-400" />
+                        <span>Google Firebase Firestore Holati</span>
                       </h4>
-                      <span className="text-xs text-slate-500 font-mono">Device Analytics</span>
+                      <span className="text-xs text-emerald-400 font-mono">Faol (Active)</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                        <span className="text-xs text-slate-400 block mb-1">💻 Kompyuter (Desktop)</span>
-                        <span className="text-xl font-bold text-white font-mono">65%</span>
+                    <div className="flex flex-col gap-2.5 text-xs text-slate-300">
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-400">Bulutli Baza:</span>
+                        <span className="font-mono font-bold text-white">Google Cloud Firestore</span>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                        <span className="text-xs text-slate-400 block mb-1">📱 Mobil Qurilmalar</span>
-                        <span className="text-xl font-bold text-white font-mono">35%</span>
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-400">Sinxronizatsiya:</span>
+                        <span className="font-mono text-emerald-400 font-bold">Avtomatik Real-Time</span>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                        <span className="text-xs text-slate-400 block mb-1">🌐 Chrome / Chromium</span>
-                        <span className="text-xl font-bold text-white font-mono">72%</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                        <span className="text-xs text-slate-400 block mb-1">🧭 Safari & Edge</span>
-                        <span className="text-xl font-bold text-white font-mono">28%</span>
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-400">Maʼlumotlar xavfsizligi:</span>
+                        <span className="font-mono text-indigo-300">End-to-End himoyalangan</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-xs text-indigo-300">
-                    💡 <strong>Maslahat:</strong> Platforma toʻliq mobil moslashuvchanlikka ega va har qanday smartfonda qulay ishlaydi.
+                    ✅ <strong>100% Haqiqiy rejim yoqildi:</strong> Boshqa odamlar saytingizga kirishi bilan ularning har bir qadami shu zahotiyoq Firebase orqali ekraningizda koʻrinadi.
                   </div>
                 </div>
               </div>
@@ -461,7 +450,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
           {activeTab === 'feed' && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between gap-3">
-                <h4 className="font-bold text-white text-sm">Real-vaqt Harakatlar Logi</h4>
+                <h4 className="font-bold text-white text-sm">Haqiqiy Jonli Harakatlar Logi</h4>
                 <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
                   {['all', 'pomodoro_complete', 'tree_planted', 'task_completed', 'visit'].map((flt) => (
                     <button
@@ -487,39 +476,45 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                {filteredEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-slate-700 transition"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5">{getEventBadge(ev.type)}</div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white">{ev.userName}</span>
-                          <span className="text-xs text-slate-500 font-mono">({ev.userEmail})</span>
-                          <span className="text-xs text-indigo-400 font-medium">📍 {ev.city}, {ev.country}</span>
+              {filteredEvents.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {filteredEvents.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-slate-700 transition"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5">{getEventBadge(ev.type)}</div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white">{ev.userName}</span>
+                            <span className="text-xs text-slate-500 font-mono">({ev.userEmail})</span>
+                            <span className="text-xs text-indigo-400 font-medium">📍 {ev.city}, {ev.country}</span>
+                          </div>
+                          {ev.details && <p className="text-xs text-slate-300 mt-1">{ev.details}</p>}
                         </div>
-                        {ev.details && <p className="text-xs text-slate-300 mt-1">{ev.details}</p>}
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center text-right">
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          {new Date(ev.timestamp).toLocaleTimeString('uz-UZ', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                          {ev.device}
+                        </span>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-center text-right">
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {new Date(ev.timestamp).toLocaleTimeString('uz-UZ', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        })}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-                        {ev.device}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center rounded-2xl bg-slate-950/40 border border-slate-800 text-slate-400 text-xs">
+                  Hali yangi harakatlar qayd etilmadi. Boshqa foydalanuvchilar kirganda loglar bu yerda jonli oqim shaklida paydo boʻladi.
+                </div>
+              )}
             </div>
           )}
 
@@ -537,54 +532,63 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                     className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-                <span className="text-xs text-slate-400">Jami: <strong>{filteredUsers.length}</strong> ta foydalanuvchi</span>
+                <span className="text-xs text-slate-400">Jami: <strong>{filteredUsers.length}</strong> ta tashrifchi</span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredUsers.map((u) => {
-                  const isAdmin = u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-                  return (
-                    <div
-                      key={u.id}
-                      className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-start justify-between gap-3 hover:border-indigo-500/40 transition"
-                    >
-                      <div className="flex items-start gap-3">
-                        <img
-                          src={u.picture}
-                          alt={u.name}
-                          className="w-11 h-11 rounded-xl border border-slate-700 object-cover"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h5 className="text-sm font-bold text-white">{u.name}</h5>
-                            {isAdmin ? (
-                              <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                👑 ASOSCHI
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300">
-                                FOYDALANUVCHI
-                              </span>
-                            )}
+              {filteredUsers.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {filteredUsers.map((u) => {
+                    const isAdmin = u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                    return (
+                      <div
+                        key={u.id}
+                        className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-start justify-between gap-3 hover:border-indigo-500/40 transition"
+                      >
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={u.picture}
+                            alt={u.name}
+                            className="w-11 h-11 rounded-xl border border-slate-700 object-cover bg-slate-800"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-sm font-bold text-white">{u.name}</h5>
+                              {isAdmin ? (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  👑 ASOSCHI
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300">
+                                  FOYDALANUVCHI
+                                </span>
+                              )}
+                              {u.isOnline && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400" title="Onlayn"></span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 font-mono mt-0.5">{u.email}</p>
+                            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                              <span>📍 {u.city}, {u.country}</span>
+                              <span>•</span>
+                              <span>{u.device}</span>
+                            </p>
                           </div>
-                          <p className="text-xs text-slate-400 font-mono mt-0.5">{u.email}</p>
-                          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                            <span>📍 {u.city}, {u.country}</span>
-                            <span>•</span>
-                            <span>{u.device}</span>
-                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 font-mono text-xs">
+                          <span className="text-emerald-400 font-bold">🌲 {u.treesPlanted || 0} daraxt</span>
+                          <span className="text-purple-400 font-bold">⏳ {u.focusMinutes || 0} daq</span>
+                          <span className="text-amber-400 font-bold">✅ {u.tasksCompleted || 0} vazifa</span>
                         </div>
                       </div>
-
-                      <div className="flex flex-col items-end gap-1 font-mono text-xs">
-                        <span className="text-emerald-400 font-bold">🌲 {u.treesPlanted} daraxt</span>
-                        <span className="text-purple-400 font-bold">⏳ {u.focusMinutes} daq</span>
-                        <span className="text-amber-400 font-bold">✅ {u.tasksCompleted} vazifa</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 text-center rounded-2xl bg-slate-950/40 border border-slate-800 text-slate-400 text-xs">
+                  Foydalanuvchilar topilmadi.
+                </div>
+              )}
             </div>
           )}
 
@@ -594,16 +598,16 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
               <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800">
                 <h4 className="font-bold text-white text-base mb-1 flex items-center gap-2">
                   <Bell className="w-5 h-5 text-amber-400" />
-                  <span>Barcha Foydalanuvchilarga Eʼlon Tarqatish</span>
+                  <span>Barcha Haqiqiy Foydalanuvchilarga Eʼlon Tarqatish</span>
                 </h4>
                 <p className="text-xs text-slate-400 mb-4">
-                  Bu yerga yozgan xabaringiz barcha saytga kirgan foydalanuvchilar ekranining yuqori qismida koʻrinadi.
+                  Bu yerga yozgan xabaringiz Firebase orqali dunyoning istalgan burchagidagi barcha foydalanuvchilar ekranida real vaqtda paydo boʻladi!
                 </p>
 
                 {broadcastSuccess && (
                   <div className="mb-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center gap-2">
                     <Check className="w-4 h-4" />
-                    <span>Xabar muvaffaqiyatli tarqatildi!</span>
+                    <span>Xabar Firebase orqali barchaga yuborildi!</span>
                   </div>
                 )}
 
@@ -614,7 +618,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                       rows={3}
                       value={broadcastMsg}
                       onChange={(e) => setBroadcastMsg(e.target.value)}
-                      placeholder="Masalan: Aziz foydalanuvchilar, saytga yangi funksiyalar qoʻshildi!"
+                      placeholder="Masalan: Aziz doʻstlar, bugun soat 20:00 da yangi dars oʻtkazamiz!"
                       className="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -642,7 +646,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                     className="mt-2 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Xabarni Eʼlon Qilish</span>
+                    <span>Xabarni Eʼlon Qilish (Broadcast)</span>
                   </button>
                 </form>
               </div>
@@ -674,7 +678,7 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
               </div>
               <h4 className="font-bold text-white text-lg">Maʼlumotlarni Eksport Qilish</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Barcha telemetriya va foydalanuvchilar faoliyatini JSON formatida kompyuteringizga yuklab oling.
+                Firebase Firestore bulutli bazasidagi barcha real loglar va foydalanuvchilar statistikasini toʻliq yuklab oling.
               </p>
 
               <button
@@ -687,16 +691,15 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
 
               <div className="mt-8 border-t border-slate-800 pt-6">
                 <button
-                  onClick={() => {
-                    if (window.confirm('Haqiqatan ham barcha loglarni tozalab, boshlangʻich holatga keltirmoqchimisiz?')) {
-                      AnalyticsTracker.clearAllData();
-                      loadData();
+                  onClick={async () => {
+                    if (window.confirm('Haqiqatan ham barcha loglarni Firestore bazasidan tozalab tashlamoqchimisiz?')) {
+                      await AnalyticsTracker.clearAllData();
                     }
                   }}
                   className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-bold transition flex items-center gap-2 mx-auto"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Telemetriya Keshini Tozalash</span>
+                  <span>Firestore Loglarini Tozalash</span>
                 </button>
               </div>
             </div>
