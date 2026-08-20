@@ -93,3 +93,41 @@ export interface PlantedTree {
   taskTitle?: string;
   witherReason?: string;
 }
+
+export interface AnalyticsEvent {
+  id: string;
+  type: 'visit' | 'pomodoro_start' | 'pomodoro_complete' | 'tree_planted' | 'task_created' | 'task_completed' | 'location_detected' | 'theme_changed' | 'music_played';
+  userName: string;
+  userEmail: string;
+  city: string;
+  country: string;
+  timestamp: number;
+  details?: string;
+  device?: string;
+  browser?: string;
+}
+
+export interface TrackedUser {
+  id: string;
+  name: string;
+  email: string;
+  picture: string;
+  city: string;
+  country: string;
+  firstSeen: number;
+  lastActive: number;
+  totalPomodoros: number;
+  focusMinutes: number;
+  treesPlanted: number;
+  tasksCompleted: number;
+  isOnline: boolean;
+  device: string;
+}
+
+export interface SystemAnnouncement {
+  id: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'urgent';
+  createdAt: number;
+  active: boolean;
+}

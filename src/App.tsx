@@ -43,15 +43,17 @@ import {
   ShieldCheck,
   AlertTriangle
 } from 'lucide-react';
-import { TabType, UserProfile, TaskItem, WorldCity, AudioTrack, AlarmTone, TreeSpecies, PlantedTree } from './types';
+import { TabType, UserProfile, TaskItem, WorldCity, AudioTrack, AlarmTone, TreeSpecies, PlantedTree, SystemAnnouncement } from './types';
 import { soundEngine, DEFAULT_TRACKS } from './utils/audioEngine';
 import { MusicPlayerModal } from './components/MusicPlayerModal';
 import { BackgroundSettingsModal, PRESET_BACKGROUNDS } from './components/BackgroundSettingsModal';
 import { FocusTreeVisualizer, SPECIES_INFO } from './components/FocusTreeVisualizer';
 import { ForestGardenModal } from './components/ForestGardenModal';
 import { ClockView } from './components/ClockView';
+import { SecretAdminDashboard } from './components/SecretAdminDashboard';
+import { AnalyticsTracker, ADMIN_EMAIL } from './utils/analyticsTracker';
 import { UserLocationInfo, requestGpsLocation, detectTimezoneLocation } from './utils/locationService';
-import { MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation, Bell, Lock, Radio } from 'lucide-react';
 
 const DEFAULT_CITIES: WorldCity[] = [
   { id: 'tashkent', name: 'Toshkent', country: "O'zbekiston", timezone: 'Asia/Tashkent', flag: '🇺🇿' },
@@ -133,6 +135,61 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [authName, setAuthName] = useState('');
 
+  // --- Secret Super Admin State & Telemetry ---
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+  const [logoClickCount, setLogoClickCount] = useState<number>(0);
+  const [systemAnnouncement, setSystemAnnouncement] = useState<SystemAnnouncement | null>(() => {
+    return AnalyticsTracker.getAnnouncement();
+  });
+  const [isAnnouncementDismissed, setIsAnnouncementDismissed] = useState<boolean>(false);
+
+  // Saytga kirishni telemetriyaga yozish (Visit tracking)
+  useEffect(() => {
+    AnalyticsTracker.trackEvent('visit', user, userLocation, 'Sayt sahifasi ochildi');
+  }, []);
+
+  // Maxfiy klaviatura tugmalari (Ctrl+Shift+A yoki Alt+A)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.ctrlKey && e.shiftKey && (e.key === 'a' || e.key === 'A')) ||
+        (e.altKey && (e.key === 'a' || e.key === 'A'))
+      ) {
+        e.preventDefault();
+        if (user?.email?.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase()) {
+          setIsAdminModalOpen(true);
+        } else {
+          setIsAuthModalOpen(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [user]);
+
+  // Logoga 5 marta ketma-ket bosilganda admin panelini tekshirish
+  const handleLogoClick = () => {
+    setLogoClickCount((prev) => {
+      const next = prev + 1;
+      if (next >= 5) {
+        if (user?.email?.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase()) {
+          setIsAdminModalOpen(true);
+        } else {
+          setIsAuthModalOpen(true);
+        }
+        return 0;
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (logoClickCount > 0) {
+      const timer = setTimeout(() => setLogoClickCount(0), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [logoClickCount]);
+
   // --- Background State & Customizer ---
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
   const [activeBgId, setActiveBgId] = useState<string>(() => localStorage.getItem('vaqt_bg_preset') || 'cosmic');
@@ -172,6 +229,7 @@ export default function App() {
     setCurrentTrack(track);
     soundEngine.playTrack(track);
     setIsMusicPlaying(true);
+    AnalyticsTracker.trackEvent('music_played', user, userLocation, `"${track.title}" foni yangradi`);
   };
 
   const handleToggleMusic = () => {
@@ -303,6 +361,17 @@ export default function App() {
         setUser(googleUser);
         localStorage.setItem('vaqt_user_profile', JSON.stringify(googleUser));
         setIsAuthModalOpen(false);
+        AnalyticsTracker.trackEvent(
+          'visit',
+          googleUser,
+          userLocation,
+          googleUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+            ? '👑 Asoschi (Yusuf) Google orqali tizimga kirdi'
+            : 'Foydalanuvchi Google orqali kirdi'
+        );
+        if (googleUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+          setIsAdminModalOpen(true);
+        }
       }
     }
   };
@@ -342,6 +411,17 @@ export default function App() {
     setUser(newProfile);
     localStorage.setItem('vaqt_user_profile', JSON.stringify(newProfile));
     setIsAuthModalOpen(false);
+    AnalyticsTracker.trackEvent(
+      'visit',
+      newProfile,
+      userLocation,
+      newProfile.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+        ? '👑 Asoschi (Yusuf) tizimga kirdi'
+        : 'Foydalanuvchi profiliga kirdi'
+    );
+    if (newProfile.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      setIsAdminModalOpen(true);
+    }
   };
 
   const handleLogout = () => {
@@ -525,12 +605,18 @@ export default function App() {
       createdAt: Date.now(),
     };
     saveTasks([newTask, ...tasks]);
+    AnalyticsTracker.trackEvent('task_created', user, userLocation, `Yangi vazifa qoʻshildi: "${newTask.title}"`);
     setNewTaskTitle('');
   };
 
   const toggleTaskCompleted = (id: string) => {
+    const target = tasks.find(t => t.id === id);
+    const willBeCompleted = target ? !target.completed : false;
     const updated = tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
     saveTasks(updated);
+    if (willBeCompleted) {
+      AnalyticsTracker.trackEvent('task_completed', user, userLocation, `Vazifa bajarildi: "${target?.title || 'Vazifa'}"`);
+    }
   };
 
   const deleteTask = (id: string) => {
@@ -608,6 +694,7 @@ export default function App() {
               const newCount = completedPomodoros + 1;
               setCompletedPomodoros(newCount);
               localStorage.setItem('vaqt_pomo_count', String(newCount));
+              AnalyticsTracker.trackEvent('pomodoro_complete', user, userLocation, `${studyMin} daqiqalik fokus seansi yakunlandi (${newCount}-seans)`);
 
               // If deep focus was enabled and tree did not wither, plant a healthy alive tree!
               if (isDeepFocusActive && !isTreeWithered) {
@@ -626,6 +713,7 @@ export default function App() {
                   localStorage.setItem('vaqt_planted_trees', JSON.stringify(updated));
                   return updated;
                 });
+                AnalyticsTracker.trackEvent('tree_planted', user, userLocation, `"${aliveTree.name}" daraxti muvaffaqiyatli yetishtirildi`);
               }
 
               // Reset tree states for the next session
@@ -811,9 +899,13 @@ export default function App() {
         {/* ========================================================================= */}
         <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-slate-800/80 px-3 sm:px-6 py-3">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
+            {/* Logo with Secret 5-clicks trigger */}
+            <div
+              onClick={handleLogoClick}
+              className="flex items-center gap-3 cursor-pointer select-none group"
+              title="Vaqt Pro Studio"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20 group-hover:scale-105 transition">
                 <Clock className="w-5 h-5 text-white animate-pulse" />
               </div>
               <div>
@@ -854,6 +946,20 @@ export default function App() {
 
             {/* Right Action Tools */}
             <div className="flex items-center gap-2">
+              {/* Secret Admin Button - ONLY visible to yusuf18081998@gmail.com */}
+              {user?.email?.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase() && (
+                <button
+                  id="secret-super-admin-btn"
+                  type="button"
+                  onClick={() => setIsAdminModalOpen(true)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-indigo-500/20 to-purple-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 hover:text-white shadow-lg shadow-amber-950/40 hover:scale-105 active:scale-95 animate-fade-in"
+                  title="Super Admin Maxfiy Boshqaruv Paneli"
+                >
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">Admin Panel</span>
+                </button>
+              )}
+
               {/* Forest & Garden Button */}
               <button
                 id="header-forest-btn"
@@ -926,7 +1032,7 @@ export default function App() {
                   <img
                     src={user.picture}
                     alt={user.name}
-                    className="w-8 h-8 rounded-xl border border-indigo-500/50 bg-slate-800"
+                    className="w-8 h-8 rounded-xl border border-indigo-500/50 bg-slate-800 object-cover"
                   />
                   <button
                     onClick={handleLogout}
@@ -969,6 +1075,25 @@ export default function App() {
             })}
           </nav>
         </header>
+
+        {/* System Announcement Banner (If active) */}
+        {systemAnnouncement && systemAnnouncement.active && !isAnnouncementDismissed && (
+          <div className="w-full bg-gradient-to-r from-indigo-950/90 via-purple-950/90 to-slate-950/90 border-b border-indigo-500/30 px-4 py-2.5 backdrop-blur-xl flex items-center justify-between gap-3 text-xs z-30 animate-fade-in">
+            <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-indigo-200 font-medium">
+                <Bell className="w-4 h-4 text-amber-400 animate-bounce flex-shrink-0" />
+                <span>{systemAnnouncement.message}</span>
+              </div>
+              <button
+                onClick={() => setIsAnnouncementDismissed(true)}
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition flex-shrink-0"
+                title="Yopish"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* MAIN BODY PER TAB */}
@@ -1929,6 +2054,17 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Secret Super Admin Dashboard Modal (Protected for yusuf18081998@gmail.com) */}
+      <SecretAdminDashboard
+        user={user}
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        onBroadcastAnnouncement={(ann) => {
+          setSystemAnnouncement(ann);
+          setIsAnnouncementDismissed(false);
+        }}
+      />
     </div>
   );
 }
