@@ -222,6 +222,63 @@ export default function App() {
     }
   };
 
+  const GOOGLE_CLIENT_ID = '490471193935-10epq4o6ueobnfhms7t87lr2s7lcvv2i.apps.googleusercontent.com';
+
+  const parseJwt = (token: string) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch {
+      return null;
+    }
+  };
+
+  const handleGoogleCredentialResponse = (response: any) => {
+    if (response?.credential) {
+      const payload = parseJwt(response.credential);
+      if (payload) {
+        const googleUser: UserProfile = {
+          name: payload.name || payload.given_name || 'Foydalanuvchi',
+          email: payload.email || '',
+          picture: payload.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${payload.email || 'user'}`,
+        };
+        setUser(googleUser);
+        localStorage.setItem('vaqt_user_profile', JSON.stringify(googleUser));
+        setIsAuthModalOpen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthModalOpen && typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialResponse,
+        });
+        const buttonDiv = document.getElementById('google-signin-btn-container');
+        if (buttonDiv) {
+          (window as any).google.accounts.id.renderButton(buttonDiv, {
+            theme: 'filled_blue',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'pill',
+            width: '100%',
+          });
+        }
+      } catch (err) {
+        console.error('Google GSI initialization error:', err);
+      }
+    }
+  }, [isAuthModalOpen]);
+
   // Auth Submit
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1835,6 +1892,20 @@ export default function App() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Google Sign In Official Button Container */}
+            <div className="flex flex-col gap-2">
+              <div id="google-signin-btn-container" className="w-full flex justify-center min-h-[42px]"></div>
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-800"></div>
+              <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                Yoki qoʻlda kirish
+              </span>
+              <div className="flex-grow border-t border-slate-800"></div>
+            </div>
+
             <form onSubmit={handleAuthSubmit} className="flex flex-col gap-3">
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Ismingiz</label>
