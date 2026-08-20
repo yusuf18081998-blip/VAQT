@@ -1,0 +1,6 @@
+{
+  "name": "VAQT - Soat, Pomodoro & Fokus Daraxti",
+  "description": "Aniq dunyo vaqti, Pomodoro dars taymeri, Anti-Chalgʻish Fokus Daraxti (Forest), vazifalar boshqaruvi, shaxsiy fon suratlari va audio treklar yuklash imkoniyatiga ega universal vaqt boshqaruvi platformasi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
