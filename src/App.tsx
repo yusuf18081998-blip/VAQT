@@ -49,6 +49,9 @@ import { MusicPlayerModal } from './components/MusicPlayerModal';
 import { BackgroundSettingsModal, PRESET_BACKGROUNDS } from './components/BackgroundSettingsModal';
 import { FocusTreeVisualizer, SPECIES_INFO } from './components/FocusTreeVisualizer';
 import { ForestGardenModal } from './components/ForestGardenModal';
+import { ClockView } from './components/ClockView';
+import { UserLocationInfo, requestGpsLocation, detectTimezoneLocation } from './utils/locationService';
+import { MapPin, Navigation } from 'lucide-react';
 
 const DEFAULT_CITIES: WorldCity[] = [
   { id: 'tashkent', name: 'Toshkent', country: "O'zbekiston", timezone: 'Asia/Tashkent', flag: '🇺🇿' },
@@ -68,6 +71,54 @@ const DEFAULT_CITIES: WorldCity[] = [
 export default function App() {
   // --- Navigation & Active View ---
   const [activeTab, setActiveTab] = useState<TabType>('world_clock');
+
+  // --- Geolocation State & Time Detection ---
+  const [userLocation, setUserLocation] = useState<UserLocationInfo>(() => {
+    try {
+      const saved = localStorage.getItem('vaqt_user_location');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return detectTimezoneLocation();
+  });
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
+
+  // Saytga birinchi marta kirganda joylashuv so'rash
+  useEffect(() => {
+    const hasAskedLocation = localStorage.getItem('vaqt_location_prompt_seen');
+    if (!hasAskedLocation) {
+      const timer = setTimeout(() => {
+        setShowLocationModal(true);
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleAllowLocation = async () => {
+    setIsDetectingLocation(true);
+    try {
+      const loc = await requestGpsLocation();
+      setUserLocation(loc);
+      localStorage.setItem('vaqt_user_location', JSON.stringify(loc));
+      localStorage.setItem('vaqt_location_prompt_seen', 'true');
+    } catch {
+      const fallback = detectTimezoneLocation();
+      setUserLocation(fallback);
+      localStorage.setItem('vaqt_user_location', JSON.stringify(fallback));
+      localStorage.setItem('vaqt_location_prompt_seen', 'true');
+    } finally {
+      setIsDetectingLocation(false);
+      setShowLocationModal(false);
+    }
+  };
+
+  const handleDeclineLocation = () => {
+    const fallback = detectTimezoneLocation();
+    setUserLocation(fallback);
+    localStorage.setItem('vaqt_user_location', JSON.stringify(fallback));
+    localStorage.setItem('vaqt_location_prompt_seen', 'true');
+    setShowLocationModal(false);
+  };
 
   // --- Auth State ---
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -923,132 +974,9 @@ export default function App() {
         {/* MAIN BODY PER TAB */}
         {/* ========================================================================= */}
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
-          {/* TAB 1: DUNYO VAQTLARI & ANIQ SOAT */}
+          {/* TAB 1: DUNYO VAQTLARI & ANIQ SOAT (CLOCK VIEW) */}
           {activeTab === 'world_clock' && (
-            <div className="flex flex-col gap-6 animate-fadeIn">
-              {/* Big Local Time Hero Card */}
-              <div className="p-6 sm:p-10 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-slate-800/80 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center group">
-                <div className="absolute -right-16 -top-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-700" />
-                <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-purple-500/20 transition-all duration-700" />
-
-                {/* View toggle (Digital / Analog) */}
-                <div className="absolute top-4 right-4 flex items-center gap-2">
-                  <button
-                    onClick={() => setIsAnalogView(!isAnalogView)}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5"
-                  >
-                    <Compass className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>{isAnalogView ? 'Raqamli Koʻrinish' : 'Analog Soat'}</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">🇺🇿</span>
-                  <h2 className="text-sm sm:text-base font-bold text-indigo-300 uppercase tracking-widest">
-                    Oʻzbekiston Standart Vaqti (UTC+5)
-                  </h2>
-                </div>
-
-                {isAnalogView ? (
-                  /* Analog Clock Dial */
-                  <div className="my-6 relative w-56 h-56 rounded-full border-4 border-slate-700 bg-slate-950/80 shadow-2xl flex items-center justify-center">
-                    {/* Hour Marks */}
-                    {[...Array(12)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="absolute w-full h-full text-center text-slate-400 font-bold text-xs pt-1.5 select-none"
-                        style={{ transform: `rotate(${i * 30}deg)` }}
-                      >
-                        <span style={{ display: 'inline-block', transform: `rotate(${-i * 30}deg)` }}>
-                          {i === 0 ? 12 : i}
-                        </span>
-                      </div>
-                    ))}
-                    {/* Clock Hands */}
-                    <div
-                      className="absolute bottom-1/2 left-1/2 w-1.5 h-16 bg-white rounded-full origin-bottom shadow"
-                      style={{ transform: `translateX(-50%) rotate(${hrDeg}deg)` }}
-                    />
-                    <div
-                      className="absolute bottom-1/2 left-1/2 w-1 h-20 bg-indigo-400 rounded-full origin-bottom shadow"
-                      style={{ transform: `translateX(-50%) rotate(${minDeg}deg)` }}
-                    />
-                    <div
-                      className="absolute bottom-1/2 left-1/2 w-0.5 h-24 bg-rose-500 rounded-full origin-bottom shadow"
-                      style={{ transform: `translateX(-50%) rotate(${secDeg}deg)` }}
-                    />
-                    <div className="w-3 h-3 rounded-full bg-rose-500 border-2 border-white z-10 shadow" />
-                  </div>
-                ) : (
-                  /* Digital Large Display */
-                  <div className="my-4 font-mono font-extrabold text-5xl sm:text-7xl md:text-8xl tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-slate-100 to-indigo-300 drop-shadow-xl select-none">
-                    {String(time.getHours()).padStart(2, '0')}:
-                    {String(time.getMinutes()).padStart(2, '0')}:
-                    <span className="text-indigo-400">{String(time.getSeconds()).padStart(2, '0')}</span>
-                  </div>
-                )}
-
-                {/* Date & Weekday */}
-                <div className="flex flex-wrap items-center justify-center gap-3 text-slate-300 text-sm sm:text-base font-medium">
-                  <span className="px-3 py-1 rounded-xl bg-slate-800/80 border border-slate-700/80">
-                    📅 {localDayName}, {localDateStr}
-                  </span>
-                  <span className="px-3 py-1 rounded-xl bg-indigo-950/60 border border-indigo-500/30 text-indigo-300">
-                    🌙 Hijriy 1448
-                  </span>
-                </div>
-              </div>
-
-              {/* World Cities Grid */}
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-indigo-400" />
-                    <h3 className="font-bold text-lg text-white">Dunyo Shaharlari Aniq Vaqtlari</h3>
-                  </div>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Shaharni qidirish..."
-                      value={citySearch}
-                      onChange={(e) => setCitySearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filteredCities.map((city) => (
-                    <div
-                      key={city.id}
-                      className="p-4 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 hover:border-indigo-500/50 shadow-lg hover:shadow-indigo-500/10 transition-all group flex flex-col justify-between"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{city.flag}</span>
-                          <div>
-                            <h4 className="font-bold text-white text-sm group-hover:text-indigo-300 transition">
-                              {city.name}
-                            </h4>
-                            <p className="text-[11px] text-slate-400">{city.country}</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          {formatCityDate(city.timezone)}
-                        </span>
-                      </div>
-                      <div className="font-mono text-2xl font-bold text-indigo-200 tracking-wider pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                        <span>{formatCityTime(city.timezone)}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-sans">
-                          {city.timezone.split('/')[1]?.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ClockView userLocation={userLocation} onUpdateLocation={setUserLocation} />
           )}
 
           {/* TAB 2: POMODORO & DARS TAYMERI + FOKUS DARAXTI */}
@@ -1936,6 +1864,68 @@ export default function App() {
                 Kirish & Saqlash
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Geolocation Permission Modal */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900/95 border border-indigo-500/40 p-6 sm:p-7 shadow-2xl shadow-indigo-950/50 flex flex-col items-center text-center gap-4 relative overflow-hidden">
+            {/* Ambient background light */}
+            <div className="absolute -top-16 -right-16 w-48 h-48 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
+
+            {/* Icon */}
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
+              <MapPin className="w-8 h-8 animate-bounce" />
+            </div>
+
+            <div>
+              <h3 className="font-extrabold text-white text-lg sm:text-xl">
+                Mahalliy Vaqtingizni Aniqlash
+              </h3>
+              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                Joylashuvingizdan foydalanishga ruxsat bersangiz, sayt qayerda ekanligingizni aniqlab, soatni aynan sizning mahalliy vaqtingizga toʻgʻrilab beradi.
+              </p>
+            </div>
+
+            {/* Current detected suggestion */}
+            <div className="w-full p-3 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-center gap-2 text-xs text-indigo-300 font-medium">
+              <span>{userLocation.flag}</span>
+              <span>Taxminiy hudud: <strong>{userLocation.city}, {userLocation.country}</strong></span>
+            </div>
+
+            {/* Actions */}
+            <div className="w-full flex flex-col sm:flex-row items-center gap-2.5 mt-2">
+              <button
+                id="allow-location-btn"
+                type="button"
+                onClick={handleAllowLocation}
+                disabled={isDetectingLocation}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2 hover:scale-[1.02]"
+              >
+                {isDetectingLocation ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Aniqlanmoqda...</span>
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="w-4 h-4" />
+                    <span>Ruxsat Berish & Vaqtni Moslash</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                id="decline-location-btn"
+                type="button"
+                onClick={handleDeclineLocation}
+                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition"
+              >
+                Oʻtkazib yuborish
+              </button>
+            </div>
           </div>
         </div>
       )}
