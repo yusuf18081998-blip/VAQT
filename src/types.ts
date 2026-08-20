@@ -1,6 +1,6 @@
-export type TabType = 'world_clock' | 'pomodoro' | 'tasks' | 'stopwatch' | 'countdown' | 'clock' | 'source_code';
+export type TabType = 'pomodoro' | 'clock' | 'stopwatch' | 'countdown' | 'analytics';
 
-export type ThemeMode = 'dark' | 'light' | 'system';
+export type ThemeMode = 'dark' | 'light' | 'cyber' | 'forest' | 'sunset' | 'oled';
 
 export type PomodoroMode = 'focus' | 'shortBreak' | 'longBreak' | 'study' | 'short_break' | 'long_break';
 

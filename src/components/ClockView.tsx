@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ALL_WORLD_CITIES, REGION_LABELS, WorldCityData } from '../data/worldCities';
 import { UserLocationInfo, requestGpsLocation, detectTimezoneLocation } from '../utils/locationService';
+import { SoundStatusIndicator } from './SoundStatusIndicator';
 
 const INITIAL_SELECTED_CITY_IDS = [
   'tashkent',
@@ -229,7 +230,9 @@ export const ClockView: React.FC<ClockViewProps> = ({ userLocation, onUpdateLoca
           </div>
 
           {/* Format va Rejim tugmalari */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <SoundStatusIndicator compact={false} showHotkey={true} />
+
             <button
               id="toggleFormatBtn"
               onClick={() => setIs24Hour(!is24Hour)}
@@ -260,34 +263,34 @@ export const ClockView: React.FC<ClockViewProps> = ({ userLocation, onUpdateLoca
 
         {/* Display Content */}
         {!isAnalog ? (
-          <div className="flex flex-col items-center z-10">
-            {/* Raqamli Vaqt */}
-            <div className="flex items-baseline justify-center font-mono tracking-tight text-slate-900 dark:text-white font-bold select-none text-5xl sm:text-7xl md:text-8xl drop-shadow-sm">
-              <span className="bg-clip-text text-transparent bg-gradient-to-b from-slate-900 to-slate-700 dark:from-white dark:to-slate-300">
+          <div className="flex flex-col items-center z-10 py-2 sm:py-4">
+            {/* Raqamli Vaqt - High Typographic Contrast */}
+            <div className="flex items-baseline justify-center font-timer tracking-tighter text-slate-900 dark:text-white font-black select-none text-6xl sm:text-8xl md:text-9xl lg:text-[7.5rem] leading-none drop-shadow-2xl">
+              <span className="text-glow-white bg-clip-text text-transparent bg-gradient-to-b from-white via-slate-100 to-slate-300">
                 {localHourStr}
               </span>
-              <span className="text-indigo-500 animate-pulse px-1">:</span>
-              <span className="bg-clip-text text-transparent bg-gradient-to-b from-slate-900 to-slate-700 dark:from-white dark:to-slate-300">
+              <span className="text-indigo-400 dark:text-indigo-400 animate-pulse px-0.5 sm:px-1.5 font-light opacity-90 drop-shadow-[0_0_12px_rgba(99,102,241,0.8)]">:</span>
+              <span className="text-glow-white bg-clip-text text-transparent bg-gradient-to-b from-white via-slate-100 to-slate-300">
                 {localMinStr}
               </span>
-              <span className="text-indigo-500 animate-pulse px-1">:</span>
-              <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+              <span className="text-indigo-400 dark:text-indigo-400 animate-pulse px-0.5 sm:px-1.5 font-light opacity-90 drop-shadow-[0_0_12px_rgba(99,102,241,0.8)]">:</span>
+              <span className="text-cyan-400 dark:text-cyan-400 font-black text-glow-cyan">
                 {localSecStr}
               </span>
               {ampm && (
-                <span className="ml-3 text-lg sm:text-2xl font-sans font-extrabold text-purple-600 dark:text-purple-400">
+                <span className="ml-3 sm:ml-4 text-xl sm:text-3xl md:text-4xl font-timer font-black uppercase text-pink-400 tracking-wider text-glow-indigo">
                   {ampm}
                 </span>
               )}
             </div>
 
             {/* Sana va Hudud */}
-            <div className="mt-4 text-sm sm:text-base font-medium text-slate-600 dark:text-slate-300 flex flex-wrap items-center justify-center gap-2">
-              <span className="px-3 py-1 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-500/20">
+            <div className="mt-6 text-sm sm:text-base font-medium text-slate-600 dark:text-slate-300 flex flex-wrap items-center justify-center gap-2">
+              <span className="px-3 py-1 rounded-xl bg-indigo-500/15 dark:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 font-bold border border-indigo-500/30 shadow-sm">
                 {localDayName}
               </span>
-              <span>{localDateStr}</span>
-              <span className="text-xs text-slate-400 font-mono">({userTz})</span>
+              <span className="font-semibold text-slate-200">{localDateStr}</span>
+              <span className="text-xs text-slate-400 font-mono px-2 py-0.5 rounded-lg bg-slate-900/60 border border-white/5">({userTz})</span>
             </div>
           </div>
         ) : (

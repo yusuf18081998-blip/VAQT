@@ -1,34 +1,71 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, SkipForward, Flame, Coffee, Palmtree, Settings2, Sparkles, CheckCircle2 } from 'lucide-react';
-import { PomodoroMode, PomodoroConfig } from '../types';
-import { playTimerSound } from '../utils/audio';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  SkipForward,
+  Flame,
+  Coffee,
+  Palmtree,
+  Settings2,
+  Sparkles,
+  CheckCircle2,
+  Volume2,
+  VolumeX,
+  Radio,
+  Sliders,
+  Zap,
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { PomodoroMode, PomodoroConfig, PlantedTree } from '../types';
+import { binauralEngine } from '../utils/binauralEngine';
+import { AudioVisualizer } from './AudioVisualizer';
+import { Language, TRANSLATIONS } from '../utils/translations';
+import { AnalyticsTracker } from '../utils/analyticsTracker';
+import { detectTimezoneLocation } from '../utils/locationService';
+import { SoundStatusIndicator } from './SoundStatusIndicator';
 
 interface PomodoroViewProps {
   config: PomodoroConfig;
   onUpdateConfig: (newConfig: PomodoroConfig) => void;
+  lang: Language;
+  onTreePlanted?: (tree: PlantedTree) => void;
 }
 
-export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConfig }) => {
+export const PomodoroView: React.FC<PomodoroViewProps> = ({
+  config,
+  onUpdateConfig,
+  lang,
+  onTreePlanted,
+}) => {
+  const t = TRANSLATIONS[lang];
   const [mode, setMode] = useState<PomodoroMode>('focus');
   const [timeLeft, setTimeLeft] = useState<number>(config.focusTime * 60);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [enableTickSound, setEnableTickSound] = useState<boolean>(false);
   const [completedSessions, setCompletedSessions] = useState<number>(() => {
     const saved = localStorage.getItem('vaqt_pomo_sessions');
     return saved ? parseInt(saved, 10) : 0;
   });
   const [taskName, setTaskName] = useState<string>('');
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [showVisualizer, setShowVisualizer] = useState<boolean>(true);
 
   const timerRef = useRef<number | null>(null);
 
   const getModeDuration = (currentMode: PomodoroMode) => {
     switch (currentMode) {
       case 'focus':
+      case 'study':
         return config.focusTime * 60;
       case 'shortBreak':
+      case 'short_break':
         return config.shortBreak * 60;
       case 'longBreak':
+      case 'long_break':
         return config.longBreak * 60;
+      default:
+        return config.focusTime * 60;
     }
   };
 
@@ -41,11 +78,22 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
     }
   }, [config.focusTime, config.shortBreak, config.longBreak, mode]);
 
-  // Main countdown effect
+  // Main countdown effect with ticking sound
   useEffect(() => {
     if (isRunning) {
+      AnalyticsTracker.trackEvent(
+        'pomodoro_start',
+        null,
+        detectTimezoneLocation(),
+        `${taskName || 'Fokus'} (${Math.round(totalDuration / 60)} daq)`
+      );
+
       timerRef.current = window.setInterval(() => {
         setTimeLeft((prev) => {
+          if (enableTickSound) {
+            binauralEngine.playTick();
+          }
+
           if (prev <= 1) {
             clearInterval(timerRef.current!);
             handleComplete();
@@ -60,17 +108,87 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isRunning, mode, config]);
+  }, [isRunning, mode, config, enableTickSound, totalDuration, taskName]);
+
+  // Global Keyboard Shortcuts for Pomodoro
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Avoid hotkeys when typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsRunning((prev) => !prev);
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        handleReset();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        binauralEngine.toggleMute();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, config]);
 
   const handleComplete = () => {
     setIsRunning(false);
-    playTimerSound(config.sound);
+    binauralEngine.playAlarm('zen_bell');
 
-    if (mode === 'focus') {
+    // Trigger celebratory confetti
+    try {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#6366f1', '#ec4899', '#38bdf8', '#10b981'],
+      });
+    } catch {}
+
+    if (mode === 'focus' || mode === 'study') {
       const nextSessions = completedSessions + 1;
       setCompletedSessions(nextSessions);
       localStorage.setItem('vaqt_pomo_sessions', String(nextSessions));
 
+      // Update analytics history in localStorage
+      const todayStr = new Date().toISOString().split('T')[0];
+      const rawHistory = localStorage.getItem('pomodoro_sessions_history');
+      let historyList = rawHistory ? JSON.parse(rawHistory) : [];
+      const todayIdx = historyList.findIndex((h: any) => h.date === todayStr);
+
+      if (todayIdx >= 0) {
+        historyList[todayIdx].minutes = (historyList[todayIdx].minutes || 0) + config.focusTime;
+        historyList[todayIdx].pomodoros = (historyList[todayIdx].pomodoros || 0) + 1;
+      } else {
+        const daysUz = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan'];
+        historyList.push({
+          date: todayStr,
+          day: daysUz[new Date().getDay()],
+          minutes: config.focusTime,
+          pomodoros: 1,
+        });
+      }
+      localStorage.setItem('pomodoro_sessions_history', JSON.stringify(historyList));
+
+      // Native HTML5 Push Notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(t.pomodoro.sessionFinishedTitle, {
+          body: t.pomodoro.sessionFinishedBody,
+          icon: '/icon-192.svg',
+        });
+      }
+
+      AnalyticsTracker.trackEvent(
+        'pomodoro_complete',
+        null,
+        detectTimezoneLocation(),
+        `${taskName || 'Fokus'} (${config.focusTime} daqiqa) yakunlandi - ${nextSessions}-sessiya`
+      );
+
+      // Auto cycle switch
       if (nextSessions % config.longBreakInterval === 0) {
         setMode('longBreak');
         setTimeLeft(config.longBreak * 60);
@@ -81,6 +199,14 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
         if (config.autoStartBreaks) setIsRunning(true);
       }
     } else {
+      // Break finished
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(t.pomodoro.breakFinishedTitle, {
+          body: t.pomodoro.breakFinishedBody,
+          icon: '/icon-192.svg',
+        });
+      }
+
       setMode('focus');
       setTimeLeft(config.focusTime * 60);
       if (config.autoStartPomodoro) setIsRunning(true);
@@ -115,7 +241,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
 
   // SVG circular ring
   const radius = 120;
-  const circumference = 2 * Math.PI * radius; // ~753.98
+  const circumference = 2 * Math.PI * radius;
   const progressPercent = totalDuration > 0 ? (totalDuration - timeLeft) / totalDuration : 0;
   const strokeDashoffset = circumference - progressPercent * circumference;
 
@@ -123,103 +249,103 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
 
   const modeThemes = {
     focus: {
-      color: 'from-indigo-600 to-indigo-500',
+      color: 'from-indigo-600 to-purple-600',
       ringColor: '#6366f1',
-      badgeBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-      title: '🎯 Dars va Fokus Vaqti',
-      desc: 'Diqqatingizni jamlang, chalgʻimang va maqsad sari olgʻa bosing!',
+      title: t.pomodoro.focus,
     },
     shortBreak: {
-      color: 'from-emerald-600 to-emerald-500',
+      color: 'from-emerald-600 to-teal-500',
       ringColor: '#10b981',
-      badgeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-      title: '☕ Qisqa Tanaffus',
-      desc: 'Koʻzlaringizni dam oldiring, suv iching yoki biroz choʻziling.',
+      title: t.pomodoro.shortBreak,
     },
     longBreak: {
-      color: 'from-cyan-600 to-cyan-500',
+      color: 'from-cyan-600 to-blue-500',
       ringColor: '#06b6d4',
-      badgeBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
-      title: '🌴 Katta Tanaffus',
-      desc: 'Siz ajoyib ish bajardingiz! 15 daqiqa toʻliq hordiq chiqaring.',
+      title: t.pomodoro.longBreak,
     },
   };
 
-  const currentTheme = modeThemes[mode];
+  const activeThemeObj = modeThemes[mode as 'focus' | 'shortBreak' | 'longBreak'] || modeThemes.focus;
 
   return (
-    <div className="w-full flex flex-col gap-6 animate-fade-in">
-      {/* Asosiy Pomodoro Kartasi */}
-      <div className="relative rounded-3xl backdrop-blur-2xl bg-white/30 dark:bg-slate-900/40 border border-white/40 dark:border-white/10 shadow-2xl p-6 sm:p-10 flex flex-col items-center justify-center text-center overflow-hidden">
+    <div className="w-full flex flex-col gap-6 animate-fade-in text-slate-100 pb-12">
+      {/* Main Glassmorphic 3D Card */}
+      <div className="relative rounded-3xl backdrop-blur-2xl bg-slate-900/85 border border-indigo-500/30 shadow-2xl p-6 sm:p-10 flex flex-col items-center justify-center text-center overflow-hidden">
         {/* Glow ambient */}
         <div
-          className="absolute -top-24 -left-24 w-72 h-72 rounded-full blur-3xl pointer-events-none transition-all duration-700"
-          style={{ backgroundColor: mode === 'focus' ? 'rgba(99,102,241,0.2)' : mode === 'shortBreak' ? 'rgba(16,185,129,0.2)' : 'rgba(6,182,212,0.2)' }}
-        ></div>
+          className="absolute -top-24 -left-24 w-72 h-72 rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-30"
+          style={{
+            backgroundColor:
+              mode === 'focus' ? '#6366f1' : mode === 'shortBreak' ? '#10b981' : '#06b6d4',
+          }}
+        />
 
         {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-200/50 dark:bg-slate-950/50 border border-slate-300/40 dark:border-white/10 mb-8 flex-wrap justify-center z-10">
+        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-950/70 border border-slate-800 mb-6 flex-wrap justify-center z-10">
           <button
-            id="pomoModeFocusBtn"
             onClick={() => handleModeChange('focus')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mode === 'focus'
-                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/20'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <Flame className="w-4 h-4" />
-            <span>Fokus ({config.focusTime}m)</span>
+            <span>
+              {t.pomodoro.focus} ({config.focusTime}m)
+            </span>
           </button>
 
           <button
-            id="pomoModeShortBtn"
             onClick={() => handleModeChange('shortBreak')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mode === 'shortBreak'
-                ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-600/30'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <Coffee className="w-4 h-4" />
-            <span>Qisqa tanaffus ({config.shortBreak}m)</span>
+            <span>
+              {t.pomodoro.shortBreak} ({config.shortBreak}m)
+            </span>
           </button>
 
           <button
-            id="pomoModeLongBtn"
             onClick={() => handleModeChange('longBreak')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mode === 'longBreak'
-                ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-md shadow-cyan-500/20'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-500 text-white shadow-lg shadow-cyan-600/30'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <Palmtree className="w-4 h-4" />
-            <span>Katta tanaffus ({config.longBreak}m)</span>
+            <span>
+              {t.pomodoro.longBreak} ({config.longBreak}m)
+            </span>
           </button>
         </div>
 
-        {/* Task Input */}
+        {/* Task Input Box */}
         <div className="w-full max-w-md mb-6 z-10">
           <input
             type="text"
             value={taskName}
             onChange={(e) => setTaskName(e.target.value)}
-            placeholder="Qaysi vazifa ustida ishlayapsiz? (Masalan: Ingliz tili lugʻat yodlash)"
-            className="w-full text-center px-4 py-2.5 rounded-xl bg-white/50 dark:bg-slate-800/60 border border-slate-300/60 dark:border-white/10 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+            placeholder="Qaysi vazifa ustida ishlayapsiz? (Masalan: Algoritmlar & WebGL)"
+            className="w-full text-center px-4 py-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
           />
         </div>
 
-        {/* Circular Timer Ring */}
-        <div className="relative w-64 h-64 sm:w-72 sm:h-72 mb-8 flex items-center justify-center select-none z-10">
+        {/* Circular Timer Ring with Neon Visualizer Layer */}
+        <div className="relative w-64 h-64 sm:w-72 sm:h-72 mb-6 flex items-center justify-center select-none z-10">
           <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 280 280">
             {/* Background Track */}
             <circle
               cx="140"
               cy="140"
               r={radius}
-              className="stroke-slate-200/60 dark:stroke-slate-800/80"
-              strokeWidth="12"
+              className="stroke-slate-800/80"
+              strokeWidth="10"
               fill="none"
             />
             {/* Progress Stroke */}
@@ -227,190 +353,218 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
               cx="140"
               cy="140"
               r={radius}
-              stroke={currentTheme.ringColor}
-              strokeWidth="12"
+              stroke={activeThemeObj.ringColor}
+              strokeWidth="10"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
               fill="none"
-              className="transition-all duration-500 ease-linear"
+              className="transition-all duration-500 ease-linear shadow-lg"
             />
           </svg>
 
-          {/* Center Info */}
+          {/* Center Display with Bold High Contrast Typography */}
           <div className="absolute flex flex-col items-center justify-center">
-            <span className="font-mono text-5xl sm:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white drop-shadow-sm">
+            <span className="font-timer text-6xl sm:text-7xl font-black tracking-tight text-white drop-shadow-2xl text-glow-white">
               {timeFormatted}
             </span>
-            <span className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {mode === 'focus' ? 'Fokus Vaqti' : 'Tanaffus'}
+            <span className="mt-2 text-xs font-extrabold uppercase tracking-widest text-slate-300">
+              {activeThemeObj.title}
             </span>
 
             {/* Cycle indicator */}
-            <div className="mt-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200/60 dark:bg-slate-800/80 border border-slate-300/40 dark:border-white/10 text-[11px] font-bold text-slate-700 dark:text-slate-300">
-              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Sessiya: {currentCycleIndex} / {config.longBreakInterval}</span>
+            <div className="mt-3 flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-slate-950/90 border border-slate-700/80 text-[11px] font-bold text-slate-200 shadow-sm">
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>
+                {currentCycleIndex} / {config.longBreakInterval}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Boshqaruv Tugmalari */}
+        {/* Real-time Neon Waveform Audio Visualizer */}
+        {showVisualizer && (
+          <div className="w-full max-w-sm mb-6 z-10">
+            <AudioVisualizer
+              mode="waves"
+              isActive={isRunning}
+              className="w-full h-14 bg-slate-950/60 border border-indigo-500/20 rounded-2xl shadow-inner"
+            />
+          </div>
+        )}
+
+        {/* Controls Toolbar */}
         <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap z-10">
+          <SoundStatusIndicator compact={false} showHotkey={true} />
+
           <button
-            id="pomoToggleBtn"
             onClick={() => setIsRunning(!isRunning)}
-            className={`px-8 py-3.5 rounded-2xl font-bold text-sm sm:text-base flex items-center gap-2 shadow-lg transition-all transform hover:scale-105 active:scale-95 text-white ${
+            className={`px-8 py-3.5 rounded-2xl font-black text-sm sm:text-base flex items-center gap-2 shadow-xl transition-all transform hover:scale-105 active:scale-95 text-white ${
               isRunning
                 ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30'
-                : `bg-gradient-to-r ${currentTheme.color} shadow-indigo-500/30`
+                : `bg-gradient-to-r ${activeThemeObj.color} shadow-indigo-600/30`
             }`}
           >
             {isRunning ? (
               <>
                 <Pause className="w-5 h-5" />
-                <span>Toʻxtatish</span>
+                <span>{t.actions.pause}</span>
               </>
             ) : (
               <>
                 <Play className="w-5 h-5 fill-current" />
-                <span>{timeLeft < totalDuration ? 'Davom ettirish' : 'Boshlash'}</span>
+                <span>{timeLeft < totalDuration ? t.actions.resume : t.actions.start}</span>
               </>
             )}
           </button>
 
           <button
-            id="pomoSkipBtn"
             onClick={handleSkip}
-            className="px-5 py-3.5 rounded-2xl font-bold text-sm sm:text-base bg-white/60 dark:bg-slate-800/80 border border-slate-300/60 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-all flex items-center gap-2 shadow-sm"
-            title="Keyingi rejimga oʻtish"
+            className="px-4 py-3.5 rounded-2xl font-bold text-sm bg-slate-950/70 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2"
+            title={t.actions.skip}
           >
-            <SkipForward className="w-4 h-4 text-indigo-500" />
-            <span>Oʻtkazish</span>
+            <SkipForward className="w-4 h-4 text-indigo-400" />
+            <span>{t.actions.skip}</span>
           </button>
 
           <button
-            id="pomoResetBtn"
             onClick={handleReset}
-            className="px-5 py-3.5 rounded-2xl font-bold text-sm sm:text-base bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25 transition-all flex items-center gap-2 shadow-sm"
+            className="px-4 py-3.5 rounded-2xl font-bold text-sm bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 transition flex items-center gap-2"
+            title="Reset (R)"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Qaytarish</span>
+            <span>{t.actions.reset}</span>
           </button>
 
           <button
-            id="pomoSettingsToggleBtn"
+            onClick={() => setEnableTickSound(!enableTickSound)}
+            className={`p-3.5 rounded-2xl border transition ${
+              enableTickSound
+                ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300 shadow-sm'
+                : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
+            }`}
+            title="Soat tiktagi ovozi (Tick-Tock)"
+          >
+            <Radio className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-3.5 rounded-2xl bg-white/60 dark:bg-slate-800/80 border border-slate-300/60 dark:border-white/15 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
-            title="Pomodoro vaqtlarini sozlash"
+            className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition"
+            title="Sozlamalar"
           >
             <Settings2 className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Sozlamalar paneli (Accordion) */}
+        {/* Settings Accordion */}
         {showSettings && (
-          <div className="w-full max-w-lg mt-8 pt-6 border-t border-slate-200/60 dark:border-white/10 z-10 animate-fade-in flex flex-col gap-4">
-            <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-              Pomodoro Vaqtlarini Moslashtirish (Daqiqalarda)
+          <div className="w-full max-w-lg mt-8 pt-6 border-t border-slate-800 z-10 animate-fade-in flex flex-col gap-4">
+            <h4 className="font-bold text-white text-sm text-left">
+              Pomodoro Sozlamalari (Daqiqalarda)
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="flex flex-col gap-1.5 text-left p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  🎯 Fokus (daq):
-                </label>
+              <div className="flex flex-col gap-1 text-left p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <label className="text-xs font-semibold text-slate-400">🎯 Fokus (daq):</label>
                 <input
                   type="number"
                   min="1"
                   max="120"
                   value={config.focusTime}
                   onChange={(e) =>
-                    onUpdateConfig({ ...config, focusTime: Math.max(1, parseInt(e.target.value) || 25) })
+                    onUpdateConfig({
+                      ...config,
+                      focusTime: Math.max(1, parseInt(e.target.value) || 25),
+                    })
                   }
-                  className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-bold font-mono text-slate-900 dark:text-white"
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-sm font-bold font-mono text-white"
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5 text-left p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  ☕ Qisqa tanaffus (daq):
-                </label>
+              <div className="flex flex-col gap-1 text-left p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <label className="text-xs font-semibold text-slate-400">☕ Qisqa (daq):</label>
                 <input
                   type="number"
                   min="1"
                   max="30"
                   value={config.shortBreak}
                   onChange={(e) =>
-                    onUpdateConfig({ ...config, shortBreak: Math.max(1, parseInt(e.target.value) || 5) })
+                    onUpdateConfig({
+                      ...config,
+                      shortBreak: Math.max(1, parseInt(e.target.value) || 5),
+                    })
                   }
-                  className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-bold font-mono text-slate-900 dark:text-white"
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-sm font-bold font-mono text-white"
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5 text-left p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  🌴 Katta tanaffus (daq):
-                </label>
+              <div className="flex flex-col gap-1 text-left p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <label className="text-xs font-semibold text-slate-400">🌴 Katta (daq):</label>
                 <input
                   type="number"
                   min="1"
                   max="60"
                   value={config.longBreak}
                   onChange={(e) =>
-                    onUpdateConfig({ ...config, longBreak: Math.max(1, parseInt(e.target.value) || 15) })
+                    onUpdateConfig({
+                      ...config,
+                      longBreak: Math.max(1, parseInt(e.target.value) || 15),
+                    })
                   }
-                  className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-bold font-mono text-slate-900 dark:text-white"
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-sm font-bold font-mono text-white"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between flex-wrap gap-4 text-xs font-medium text-slate-600 dark:text-slate-400 pt-2">
+            <div className="flex items-center justify-between flex-wrap gap-4 text-xs font-medium text-slate-400 pt-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={config.autoStartBreaks}
                   onChange={(e) => onUpdateConfig({ ...config, autoStartBreaks: e.target.checked })}
-                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 bg-slate-900"
                 />
-                <span>Tanaffusni avtomatik boshlash</span>
+                <span>{t.pomodoro.autoBreak}</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={config.autoStartPomodoro}
-                  onChange={(e) => onUpdateConfig({ ...config, autoStartPomodoro: e.target.checked })}
-                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                  checked={showVisualizer}
+                  onChange={(e) => setShowVisualizer(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 bg-slate-900"
                 />
-                <span>Pomodoroni avtomatik boshlash</span>
+                <span>Waveform Visualizer</span>
               </label>
             </div>
           </div>
         )}
       </div>
 
-      {/* Jami Bajarilgan Sessiyalar Statistikasi */}
-      <div className="rounded-3xl backdrop-blur-xl bg-white/30 dark:bg-slate-900/40 border border-white/40 dark:border-white/10 p-5 sm:p-6 shadow-xl flex items-center justify-between flex-wrap gap-4">
+      {/* Completed Sessions Summary Strip */}
+      <div className="rounded-3xl backdrop-blur-xl bg-slate-900/80 border border-indigo-500/20 p-5 sm:p-6 shadow-xl flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
             <Flame className="w-6 h-6" />
           </div>
           <div>
-            <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
-              Bajarilgan Fokus Sessiyalari
+            <h4 className="font-extrabold text-white text-sm sm:text-base">
+              {t.pomodoro.completedCycles}
             </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Bugungi kunda jami {completedSessions * config.focusTime} daqiqa chuqur fokus vaqti sarflandi.
+            <p className="text-xs text-slate-400">
+              Bugungi kunda jami {completedSessions * config.focusTime} daqiqa chuqur fokus vaqti
+              sarflandi.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">
+            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-indigo-400">
               {completedSessions}
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 block">Sessiya</span>
+            <span className="text-xs text-slate-400 block">Sessiya</span>
           </div>
 
           <button
@@ -420,10 +574,9 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({ config, onUpdateConf
                 localStorage.removeItem('vaqt_pomo_sessions');
               }
             }}
-            className="p-2 text-xs font-semibold rounded-xl bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 transition-all"
-            title="Statistikani tozalash"
+            className="p-2.5 text-xs font-semibold rounded-xl bg-slate-950/70 border border-slate-800 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition"
           >
-            Tozalash
+            {t.actions.clear}
           </button>
         </div>
       </div>

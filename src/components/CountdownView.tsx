@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Plus, Hourglass, BellRing, Sparkles, CheckCircle } from 'lucide-react';
 import { SoundType } from '../types';
 import { playTimerSound } from '../utils/audio';
+import { SoundStatusIndicator } from './SoundStatusIndicator';
 
 interface CountdownViewProps {
   sound: SoundType;
@@ -238,29 +239,29 @@ export const CountdownView: React.FC<CountdownViewProps> = ({ sound }) => {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col items-center">
-                <div className="flex items-baseline font-mono text-5xl sm:text-7xl md:text-8xl font-extrabold tracking-tight text-slate-900 dark:text-white drop-shadow-sm select-none">
+              <div className="flex flex-col items-center py-2 sm:py-4">
+                <div className="flex items-baseline font-timer text-6xl sm:text-8xl md:text-9xl lg:text-[7.5rem] font-black tracking-tighter text-slate-900 dark:text-white drop-shadow-2xl select-none leading-none">
                   {hoursInput > 0 && (
                     <>
-                      <span>{formattedH}</span>
-                      <span className="text-indigo-500 px-1">:</span>
+                      <span className="text-glow-white bg-clip-text text-transparent bg-gradient-to-b from-white via-slate-100 to-slate-300">{formattedH}</span>
+                      <span className="text-indigo-400 dark:text-indigo-400 animate-pulse px-1 drop-shadow-[0_0_10px_rgba(99,102,241,0.8)]">:</span>
                     </>
                   )}
-                  <span>{formattedM}</span>
-                  <span className="text-indigo-500 px-1">:</span>
-                  <span className="text-indigo-600 dark:text-indigo-400">{formattedS}</span>
+                  <span className="text-glow-white bg-clip-text text-transparent bg-gradient-to-b from-white via-slate-100 to-slate-300">{formattedM}</span>
+                  <span className="text-indigo-400 dark:text-indigo-400 animate-pulse px-1 drop-shadow-[0_0_10px_rgba(99,102,241,0.8)]">:</span>
+                  <span className="text-cyan-400 dark:text-cyan-400 font-black text-glow-cyan">{formattedS}</span>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="w-64 sm:w-80 h-3 rounded-full bg-slate-200/60 dark:bg-slate-800 mt-6 overflow-hidden border border-slate-300/40 dark:border-white/10">
+                <div className="w-64 sm:w-80 h-3.5 rounded-full bg-slate-200/60 dark:bg-slate-800 mt-6 overflow-hidden border border-slate-300/40 dark:border-white/10 shadow-inner">
                   <div
-                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-linear rounded-full"
+                    className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 transition-all duration-1000 ease-linear rounded-full shadow-md"
                     style={{ width: `${progressPercentage}%` }}
                   ></div>
                 </div>
 
                 {label && (
-                  <p className="mt-4 text-sm font-semibold text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                  <p className="mt-4 text-sm font-bold text-indigo-400 px-4 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-500/30 shadow-sm">
                     {label}
                   </p>
                 )}
@@ -271,11 +272,13 @@ export const CountdownView: React.FC<CountdownViewProps> = ({ sound }) => {
 
         {/* Boshqaruv Tugmalari */}
         <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap z-10">
+          <SoundStatusIndicator compact={false} showHotkey={true} />
+
           {!isRunning ? (
             <button
               id="cdStartBtn"
               onClick={handleStart}
-              className="px-8 py-3.5 rounded-2xl font-bold text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white shadow-lg shadow-indigo-500/30 flex items-center gap-2 transform hover:scale-105 active:scale-95 transition-all"
+              className="px-8 py-3.5 rounded-2xl font-black text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white shadow-lg shadow-indigo-500/30 flex items-center gap-2 transform hover:scale-105 active:scale-95 transition-all"
             >
               <Play className="w-5 h-5 fill-current" />
               <span>{secondsLeft < totalSeconds && !isCompleted ? 'Davom ettirish' : 'Taymerni Boshlash'}</span>

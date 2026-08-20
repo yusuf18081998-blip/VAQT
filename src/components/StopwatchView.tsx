@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Flag, Download, Copy, Check, Sparkles } from 'lucide-react';
 import { StopwatchLap } from '../types';
+import { SoundStatusIndicator } from './SoundStatusIndicator';
 
 export const StopwatchView: React.FC = () => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -139,22 +140,22 @@ export const StopwatchView: React.FC = () => {
           <div
             className={`w-64 h-64 sm:w-72 sm:h-72 rounded-full border-4 ${
               isRunning
-                ? 'border-indigo-500/60 shadow-lg shadow-indigo-500/20 animate-pulse'
+                ? 'border-indigo-500/80 shadow-2xl shadow-indigo-500/30 animate-pulse'
                 : 'border-slate-300/60 dark:border-white/10'
-            } flex items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-md relative`}
+            } flex items-center justify-center bg-white/40 dark:bg-slate-950/60 backdrop-blur-xl relative`}
           >
-            {/* Display Digits */}
-            <div className="flex flex-col items-center select-none font-mono">
-              <div className="flex items-baseline text-5xl sm:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            {/* Display Digits with bold high-contrast font */}
+            <div className="flex flex-col items-center select-none font-timer">
+              <div className="flex items-baseline text-6xl sm:text-7xl font-black tracking-tight text-slate-900 dark:text-white drop-shadow-xl text-glow-white">
                 <span>{m}</span>
-                <span className="text-indigo-500 px-0.5">:</span>
+                <span className="text-indigo-500 px-0.5 sm:px-1 drop-shadow-[0_0_10px_rgba(99,102,241,0.8)]">:</span>
                 <span>{s}</span>
               </div>
-              <div className="mt-1 flex items-center gap-1">
-                <span className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 font-sans font-bold">
-                  Millisekund:
+              <div className="mt-2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-950/60 border border-indigo-500/30">
+                <span className="text-[11px] uppercase tracking-widest text-slate-400 font-sans font-bold">
+                  MS:
                 </span>
-                <span className="text-2xl sm:text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">
+                <span className="text-2xl sm:text-3xl font-black text-cyan-400 font-timer text-glow-cyan">
                   .{ms}
                 </span>
               </div>
@@ -164,10 +165,12 @@ export const StopwatchView: React.FC = () => {
 
         {/* Boshqaruv Tugmalari */}
         <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap z-10">
+          <SoundStatusIndicator compact={false} showHotkey={true} />
+
           <button
             id="swToggleBtn"
             onClick={handleStartPause}
-            className={`px-6 sm:px-8 py-3.5 rounded-2xl font-bold text-sm sm:text-base flex items-center gap-2 shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
+            className={`px-6 sm:px-8 py-3.5 rounded-2xl font-black text-sm sm:text-base flex items-center gap-2 shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
               isRunning
                 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30'
                 : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white shadow-indigo-500/30'
