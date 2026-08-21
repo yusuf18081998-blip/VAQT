@@ -1,6 +1,7 @@
 import React from 'react';
 import { TreeSpecies } from '../types';
-import { AlertTriangle, ShieldCheck, ShieldAlert, Sparkles, Droplets, Leaf } from 'lucide-react';
+import { Language, TRANSLATIONS } from '../utils/translations';
+import { AlertTriangle, ShieldCheck, ShieldAlert, Leaf } from 'lucide-react';
 
 interface FocusTreeVisualizerProps {
   species: TreeSpecies;
@@ -14,6 +15,7 @@ interface FocusTreeVisualizerProps {
   taskTitle?: string;
   onOpenForest: () => void;
   onChangeSpecies: (species: TreeSpecies) => void;
+  lang?: Language;
 }
 
 export const SPECIES_INFO: Record<
@@ -82,8 +84,12 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
   taskTitle,
   onOpenForest,
   onChangeSpecies,
+  lang = 'uz',
 }) => {
   const currentInfo = SPECIES_INFO[species] || SPECIES_INFO.apple;
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.uz;
+  const speciesLocalized = t.speciesNames?.[species];
+  const speciesDisplayName = speciesLocalized?.name || currentInfo.name;
 
   // Determine stage of growth
   // 0-15: Seed & Sprout
@@ -100,22 +106,22 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
           {isWithered ? (
             <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-              Daraxt quridi (Boshqa ilovaga chiqildi)
+              {t.pomodoro.treeWitheredWarning}
             </span>
           ) : witherWarning ? (
             <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-bounce">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-              Diqqat! Ilovadan chiqdingiz ({leftAppCount} marta)
+              {t.pomodoro.leftAppWarning.replace('{count}', String(leftAppCount))}
             </span>
           ) : isDeepFocusActive && pomoRunning && pomoMode === 'study' ? (
             <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Fokus Himoyasi Faol
+              {t.pomodoro.focusProtectionActive}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-slate-800/60 text-slate-300 border border-slate-700/50">
               <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-              Dars davomida daraxt unadi
+              {t.pomodoro.treeGrowsDuringFocus}
             </span>
           )}
         </div>
@@ -127,7 +133,7 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
           onClick={onOpenForest}
           className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition-all hover:scale-105 active:scale-95"
         >
-          <span>🌲 Bogʻim & Oʻrmon</span>
+          <span>🌲 {t.pomodoro.myGardenBtn}</span>
         </button>
       </div>
 
@@ -161,6 +167,7 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
               {(Object.keys(SPECIES_INFO) as TreeSpecies[]).map((sp) => {
                 const isSelected = sp === species;
                 const info = SPECIES_INFO[sp];
+                const spShort = t.speciesNames?.[sp]?.shortName || info.name.split(' ')[0];
                 return (
                   <button
                     key={sp}
@@ -174,7 +181,7 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
                     }`}
                   >
                     <span>{info.icon}</span>
-                    <span>{info.name.split(' ')[0]}</span>
+                    <span>{spShort}</span>
                   </button>
                 );
               })}
@@ -398,10 +405,10 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
           <div className="w-full flex items-center justify-between text-xs text-slate-300 font-medium px-1 mb-1">
             <span className="flex items-center gap-1">
               <span>{currentInfo.icon}</span>
-              <span className="font-semibold text-white">{currentInfo.name}</span>
+              <span className="font-semibold text-white">{speciesDisplayName}</span>
             </span>
             <span className={isWithered ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
-              {isWithered ? 'Quridi (0%)' : `${Math.round(progressPercent)}% Yetildi`}
+              {isWithered ? t.pomodoro.witheredStatus : t.pomodoro.maturedStatus.replace('{percent}', String(Math.round(progressPercent)))}
             </span>
           </div>
 
@@ -424,7 +431,7 @@ export const FocusTreeVisualizer: React.FC<FocusTreeVisualizerProps> = ({
       {/* Task or Focus Info Underneath */}
       {taskTitle && (
         <div className="mt-2.5 text-xs text-slate-400 flex items-center gap-1.5 bg-slate-900/60 px-3 py-1 rounded-full border border-slate-800">
-          <span>🎯 Dars maqsadi:</span>
+          <span>{t.pomodoro.taskGoalLabel}</span>
           <span className="text-white font-medium truncate max-w-xs">{taskTitle}</span>
         </div>
       )}

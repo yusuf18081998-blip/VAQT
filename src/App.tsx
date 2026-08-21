@@ -39,7 +39,7 @@ import { ShortcutsModal } from './components/ShortcutsModal';
 import { Cyber3DScene } from './components/Cyber3DScene';
 import { SecretAdminDashboard } from './components/SecretAdminDashboard';
 import { BackgroundSettingsModal, PRESET_BACKGROUNDS } from './components/BackgroundSettingsModal';
-import { ForestGardenModal } from './components/ForestGardenModal';
+import { GardenLandModal } from './components/GardenLandModal';
 import { Language, TRANSLATIONS } from './utils/translations';
 import { binauralEngine } from './utils/binauralEngine';
 import { AnalyticsTracker, ADMIN_EMAIL } from './utils/analyticsTracker';
@@ -243,10 +243,49 @@ export default function App() {
   const [plantedTrees, setPlantedTrees] = useState<PlantedTree[]>(() => {
     try {
       const saved = localStorage.getItem('vaqt_forest_trees');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    // Initial rich garden seeds so the user can immediately see and explore their land plots!
+    const initialTrees: PlantedTree[] = [
+      {
+        id: 'tree-seed-1',
+        species: 'apple',
+        name: 'Olma Daraxti',
+        status: 'alive',
+        minutesFocused: 25,
+        plantedAt: Date.now() - 3600000 * 2,
+        taskTitle: 'Algoritmlar va Dasturlash',
+      },
+      {
+        id: 'tree-seed-2',
+        species: 'pine',
+        name: 'Ulugʻ Qaragʻay',
+        status: 'alive',
+        minutesFocused: 30,
+        plantedAt: Date.now() - 3600000 * 18,
+        taskTitle: 'Web Texnologiyalar & React',
+      },
+      {
+        id: 'tree-seed-3',
+        species: 'sakura',
+        name: 'Sakura (Gilos)',
+        status: 'alive',
+        minutesFocused: 25,
+        plantedAt: Date.now() - 3600000 * 36,
+        taskTitle: 'Ingliz tili IELTS Reading',
+      },
+      {
+        id: 'tree-seed-4',
+        species: 'oak',
+        name: 'Qadimgi Eman',
+        status: 'alive',
+        minutesFocused: 45,
+        plantedAt: Date.now() - 3600000 * 60,
+        taskTitle: 'Matematik analiz va fizika',
+      },
+    ];
+    localStorage.setItem('vaqt_forest_trees', JSON.stringify(initialTrees));
+    return initialTrees;
   });
 
   const handleTreePlanted = (newTree: PlantedTree) => {
@@ -399,6 +438,12 @@ export default function App() {
           toggleFullscreen={toggleFullscreen}
           deferredPrompt={deferredPrompt}
           onInstallApp={handleInstallApp}
+          user={user}
+          onUserChange={setUser}
+          userLocation={userLocation}
+          onOpenAdminModal={() => setIsAdminModalOpen(true)}
+          onOpenGardenModal={() => setIsForestModalOpen(true)}
+          treesCount={plantedTrees.filter((t) => t.status === 'alive').length}
         />
 
         {/* Active Tab View Rendering */}
@@ -408,7 +453,9 @@ export default function App() {
               config={pomoConfig}
               onUpdateConfig={handleUpdatePomoConfig}
               lang={lang}
+              trees={plantedTrees}
               onTreePlanted={handleTreePlanted}
+              onOpenGardenModal={() => setIsForestModalOpen(true)}
             />
           )}
 
@@ -433,6 +480,7 @@ export default function App() {
               lang={lang}
               plantedTrees={plantedTrees}
               tasks={tasks}
+              onOpenGardenModal={() => setIsForestModalOpen(true)}
               onDataImported={() => {
                 try {
                   const saved = localStorage.getItem('vaqt_forest_trees');
@@ -543,6 +591,30 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 3D Garden Land & Planted Trees Modal */}
+      <GardenLandModal
+        isOpen={isForestModalOpen}
+        trees={plantedTrees}
+        lang={lang}
+        onClose={() => setIsForestModalOpen(false)}
+        onClearHistory={() => {
+          setPlantedTrees([]);
+          localStorage.removeItem('vaqt_forest_trees');
+        }}
+        onPlantDemoTree={(species, minutes, taskTitle) => {
+          const newTree: PlantedTree = {
+            id: `tree_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            species,
+            name: `${species} daraxti`,
+            status: 'alive',
+            minutesFocused: minutes,
+            plantedAt: Date.now(),
+            taskTitle,
+          };
+          handleTreePlanted(newTree);
+        }}
+      />
 
       {/* Secret Super Admin Dashboard Modal (Gated for yusuf18081998@gmail.com) */}
       <SecretAdminDashboard

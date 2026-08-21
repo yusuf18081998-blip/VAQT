@@ -96,7 +96,7 @@ export interface PlantedTree {
 
 export interface AnalyticsEvent {
   id: string;
-  type: 'visit' | 'pomodoro_start' | 'pomodoro_complete' | 'tree_planted' | 'task_created' | 'task_completed' | 'location_detected' | 'theme_changed' | 'music_played';
+  type: 'visit' | 'login' | 'logout' | 'pomodoro_start' | 'pomodoro_complete' | 'tree_planted' | 'task_created' | 'task_completed' | 'location_detected' | 'theme_changed' | 'music_played';
   userName: string;
   userEmail: string;
   city: string;

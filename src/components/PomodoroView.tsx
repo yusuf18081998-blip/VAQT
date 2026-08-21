@@ -15,28 +15,36 @@ import {
   Radio,
   Sliders,
   Zap,
+  TreePine,
+  Layers,
+  Leaf,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { PomodoroMode, PomodoroConfig, PlantedTree } from '../types';
+import { PomodoroMode, PomodoroConfig, PlantedTree, TreeSpecies } from '../types';
 import { binauralEngine } from '../utils/binauralEngine';
 import { AudioVisualizer } from './AudioVisualizer';
 import { Language, TRANSLATIONS } from '../utils/translations';
 import { AnalyticsTracker } from '../utils/analyticsTracker';
 import { detectTimezoneLocation } from '../utils/locationService';
 import { SoundStatusIndicator } from './SoundStatusIndicator';
+import { FocusTreeVisualizer, SPECIES_INFO } from './FocusTreeVisualizer';
 
 interface PomodoroViewProps {
   config: PomodoroConfig;
   onUpdateConfig: (newConfig: PomodoroConfig) => void;
   lang: Language;
+  trees?: PlantedTree[];
   onTreePlanted?: (tree: PlantedTree) => void;
+  onOpenGardenModal?: () => void;
 }
 
 export const PomodoroView: React.FC<PomodoroViewProps> = ({
   config,
   onUpdateConfig,
   lang,
+  trees = [],
   onTreePlanted,
+  onOpenGardenModal,
 }) => {
   const t = TRANSLATIONS[lang];
   const [mode, setMode] = useState<PomodoroMode>('focus');
@@ -50,6 +58,13 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
   const [taskName, setTaskName] = useState<string>('');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showVisualizer, setShowVisualizer] = useState<boolean>(true);
+  
+  // Tree Focus State
+  const [selectedSpecies, setSelectedSpecies] = useState<TreeSpecies>('apple');
+  const [activeTabSubView, setActiveTabSubView] = useState<'timer' | 'tree'>('timer');
+  const [isWithered, setIsWithered] = useState<boolean>(false);
+  const [witherWarning, setWitherWarning] = useState<boolean>(false);
+  const [leftAppCount, setLeftAppCount] = useState<number>(0);
 
   const timerRef = useRef<number | null>(null);
 
@@ -75,8 +90,31 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
   useEffect(() => {
     if (!isRunning) {
       setTimeLeft(getModeDuration(mode));
+      setIsWithered(false);
+      setWitherWarning(false);
     }
   }, [config.focusTime, config.shortBreak, config.longBreak, mode]);
+
+  // Track tab blur / app leave for tree protection
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isRunning && (mode === 'focus' || mode === 'study')) {
+        setLeftAppCount((prev) => {
+          const nextCount = prev + 1;
+          if (nextCount >= 3) {
+            setIsWithered(true);
+          } else {
+            setWitherWarning(true);
+            setTimeout(() => setWitherWarning(false), 5000);
+          }
+          return nextCount;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isRunning, mode]);
 
   // Main countdown effect with ticking sound
   useEffect(() => {
@@ -141,10 +179,10 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
     // Trigger celebratory confetti
     try {
       confetti({
-        particleCount: 100,
-        spread: 70,
+        particleCount: 120,
+        spread: 80,
         origin: { y: 0.6 },
-        colors: ['#6366f1', '#ec4899', '#38bdf8', '#10b981'],
+        colors: ['#6366f1', '#ec4899', '#38bdf8', '#10b981', '#f59e0b'],
       });
     } catch {}
 
@@ -152,6 +190,22 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
       const nextSessions = completedSessions + 1;
       setCompletedSessions(nextSessions);
       localStorage.setItem('vaqt_pomo_sessions', String(nextSessions));
+
+      // Plant tree!
+      const newTree: PlantedTree = {
+        id: `tree_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        species: selectedSpecies,
+        name: SPECIES_INFO[selectedSpecies]?.name || 'Fokus Daraxti',
+        status: isWithered ? 'withered' : 'alive',
+        minutesFocused: config.focusTime,
+        plantedAt: Date.now(),
+        taskTitle: taskName.trim() || undefined,
+        witherReason: isWithered ? "Dars vaqtida ilovadan ko'p marotaba chiqildi" : undefined,
+      };
+
+      if (onTreePlanted) {
+        onTreePlanted(newTree);
+      }
 
       // Update analytics history in localStorage
       const todayStr = new Date().toISOString().split('T')[0];
@@ -176,7 +230,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
       // Native HTML5 Push Notification
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(t.pomodoro.sessionFinishedTitle, {
-          body: t.pomodoro.sessionFinishedBody,
+          body: `${t.pomodoro.sessionFinishedBody} Bogʻingizda yangi ${SPECIES_INFO[selectedSpecies].name} qad koʻtardi!`,
           icon: '/icon-192.svg',
         });
       }
@@ -185,7 +239,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
         'pomodoro_complete',
         null,
         detectTimezoneLocation(),
-        `${taskName || 'Fokus'} (${config.focusTime} daqiqa) yakunlandi - ${nextSessions}-sessiya`
+        `${taskName || 'Fokus'} (${config.focusTime} daqiqa) yakunlandi - ${SPECIES_INFO[selectedSpecies].name} ekildi`
       );
 
       // Auto cycle switch
@@ -209,6 +263,8 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
 
       setMode('focus');
       setTimeLeft(config.focusTime * 60);
+      setIsWithered(false);
+      setLeftAppCount(0);
       if (config.autoStartPomodoro) setIsRunning(true);
     }
   };
@@ -217,11 +273,15 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
     setMode(newMode);
     setIsRunning(false);
     setTimeLeft(getModeDuration(newMode));
+    setIsWithered(false);
+    setLeftAppCount(0);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setTimeLeft(getModeDuration(mode));
+    setIsWithered(false);
+    setLeftAppCount(0);
   };
 
   const handleSkip = () => {
@@ -239,13 +299,14 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
   const seconds = timeLeft % 60;
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  // SVG circular ring
+  // SVG circular ring calculations
   const radius = 120;
   const circumference = 2 * Math.PI * radius;
   const progressPercent = totalDuration > 0 ? (totalDuration - timeLeft) / totalDuration : 0;
   const strokeDashoffset = circumference - progressPercent * circumference;
 
   const currentCycleIndex = (completedSessions % config.longBreakInterval) + 1;
+  const aliveTreesCount = trees.filter((t) => t.status === 'alive').length;
 
   const modeThemes = {
     focus: {
@@ -270,7 +331,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
   return (
     <div className="w-full flex flex-col gap-6 animate-fade-in text-slate-100 pb-12">
       {/* Main Glassmorphic 3D Card */}
-      <div className="relative rounded-3xl backdrop-blur-2xl bg-slate-900/85 border border-indigo-500/30 shadow-2xl p-6 sm:p-10 flex flex-col items-center justify-center text-center overflow-hidden">
+      <div className="relative rounded-3xl backdrop-blur-2xl bg-slate-900/85 border border-indigo-500/30 shadow-2xl p-4 sm:p-8 flex flex-col items-center justify-center text-center overflow-hidden">
         {/* Glow ambient */}
         <div
           className="absolute -top-24 -left-24 w-72 h-72 rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-30"
@@ -280,107 +341,215 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
           }}
         />
 
-        {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-950/70 border border-slate-800 mb-6 flex-wrap justify-center z-10">
-          <button
-            onClick={() => handleModeChange('focus')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              mode === 'focus'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Flame className="w-4 h-4" />
-            <span>
-              {t.pomodoro.focus} ({config.focusTime}m)
-            </span>
-          </button>
+        {/* Top Header Controls: Mode Selector & Garden Land Trigger */}
+        <div className="w-full flex flex-wrap items-center justify-between gap-3 mb-6 z-10">
+          {/* Mode Selector Tabs */}
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800 flex-wrap">
+            <button
+              onClick={() => handleModeChange('focus')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                mode === 'focus'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Flame className="w-4 h-4" />
+              <span>
+                {t.pomodoro.focus} ({config.focusTime}m)
+              </span>
+            </button>
 
-          <button
-            onClick={() => handleModeChange('shortBreak')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              mode === 'shortBreak'
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Coffee className="w-4 h-4" />
-            <span>
-              {t.pomodoro.shortBreak} ({config.shortBreak}m)
-            </span>
-          </button>
+            <button
+              onClick={() => handleModeChange('shortBreak')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                mode === 'shortBreak'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Coffee className="w-4 h-4" />
+              <span>
+                {t.pomodoro.shortBreak} ({config.shortBreak}m)
+              </span>
+            </button>
 
-          <button
-            onClick={() => handleModeChange('longBreak')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              mode === 'longBreak'
-                ? 'bg-gradient-to-r from-cyan-600 to-blue-500 text-white shadow-lg shadow-cyan-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Palmtree className="w-4 h-4" />
-            <span>
-              {t.pomodoro.longBreak} ({config.longBreak}m)
-            </span>
-          </button>
+            <button
+              onClick={() => handleModeChange('longBreak')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                mode === 'longBreak'
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-500 text-white shadow-lg shadow-cyan-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Palmtree className="w-4 h-4" />
+              <span>
+                {t.pomodoro.longBreak} ({config.longBreak}m)
+              </span>
+            </button>
+          </div>
+
+          {/* Sub-View Switcher: Circular Timer vs 3D Tree Island */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveTabSubView('timer')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                  activeTabSubView === 'timer'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t.pomodoro.digitalClockTab}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTabSubView('tree')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 ${
+                  activeTabSubView === 'tree'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>{t.pomodoro.treeLandTab}</span>
+              </button>
+            </div>
+
+            {/* Direct Open Garden Land Button */}
+            {onOpenGardenModal && (
+              <button
+                type="button"
+                id="openGardenLandFromPomoBtn"
+                onClick={onOpenGardenModal}
+                className="px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-green-500 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30 border border-white/20 transition-all flex items-center gap-1.5 active:scale-95"
+                title={t.pomodoro.viewGardenBtn}
+              >
+                <TreePine className="w-4 h-4 shrink-0" />
+                <span>{t.pomodoro.myGardenBtn} ({aliveTreesCount})</span>
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Tree Species Selector Bar (Always selectable when focusing) */}
+        {mode === 'focus' && (
+          <div className="w-full max-w-lg mb-4 flex items-center justify-center gap-1.5 flex-wrap z-10">
+            <span className="text-xs font-bold text-slate-400 mr-1 flex items-center gap-1">
+              <Leaf className="w-3.5 h-3.5 text-emerald-400" /> {t.pomodoro.plantSpeciesLabel}
+            </span>
+            {(Object.keys(SPECIES_INFO) as TreeSpecies[]).map((sp) => {
+              const info = SPECIES_INFO[sp];
+              const isSelected = selectedSpecies === sp;
+              const spName = t.speciesNames?.[sp]?.shortName || info.name.split(' ')[0];
+              return (
+                <button
+                  key={sp}
+                  type="button"
+                  onClick={() => setSelectedSpecies(sp)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
+                    isSelected
+                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30 ring-2 ring-white/20 scale-105'
+                      : 'bg-slate-950/70 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  <span>{info.icon}</span>
+                  <span>{spName}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Task Input Box */}
-        <div className="w-full max-w-md mb-6 z-10">
+        <div className="w-full max-w-md mb-4 z-10">
           <input
             type="text"
             value={taskName}
             onChange={(e) => setTaskName(e.target.value)}
-            placeholder="Qaysi vazifa ustida ishlayapsiz? (Masalan: Algoritmlar & WebGL)"
+            placeholder={t.pomodoro.taskPlaceholder}
             className="w-full text-center px-4 py-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
           />
         </div>
 
-        {/* Circular Timer Ring with Neon Visualizer Layer */}
-        <div className="relative w-64 h-64 sm:w-72 sm:h-72 mb-6 flex items-center justify-center select-none z-10">
-          <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 280 280">
-            {/* Background Track */}
-            <circle
-              cx="140"
-              cy="140"
-              r={radius}
-              className="stroke-slate-800/80"
-              strokeWidth="10"
-              fill="none"
+        {/* MAIN TIMER DISPLAY: Either 3D Tree Visualizer on Soil Island OR Neon Circular Ring */}
+        {activeTabSubView === 'tree' ? (
+          <div className="w-full max-w-md my-2 z-10 animate-fade-in">
+            <FocusTreeVisualizer
+              species={selectedSpecies}
+              progressPercent={progressPercent * 100}
+              isWithered={isWithered}
+              witherWarning={witherWarning}
+              leftAppCount={leftAppCount}
+              isDeepFocusActive={true}
+              pomoRunning={isRunning}
+              pomoMode={mode === 'focus' ? 'study' : mode === 'shortBreak' ? 'short_break' : 'long_break'}
+              taskTitle={taskName}
+              onOpenForest={onOpenGardenModal || (() => {})}
+              onChangeSpecies={setSelectedSpecies}
+              lang={lang}
             />
-            {/* Progress Stroke */}
-            <circle
-              cx="140"
-              cy="140"
-              r={radius}
-              stroke={activeThemeObj.ringColor}
-              strokeWidth="10"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              fill="none"
-              className="transition-all duration-500 ease-linear shadow-lg"
-            />
-          </svg>
-
-          {/* Center Display with Bold High Contrast Typography */}
-          <div className="absolute flex flex-col items-center justify-center">
-            <span className="font-timer text-6xl sm:text-7xl font-black tracking-tight text-white drop-shadow-2xl text-glow-white">
-              {timeFormatted}
-            </span>
-            <span className="mt-2 text-xs font-extrabold uppercase tracking-widest text-slate-300">
-              {activeThemeObj.title}
-            </span>
-
-            {/* Cycle indicator */}
-            <div className="mt-3 flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-slate-950/90 border border-slate-700/80 text-[11px] font-bold text-slate-200 shadow-sm">
-              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>
-                {currentCycleIndex} / {config.longBreakInterval}
+            {/* Embedded Digital Countdown below tree */}
+            <div className="mt-3 text-center">
+              <span className="font-timer text-3xl font-black text-white tracking-tight">
+                {timeFormatted}
               </span>
             </div>
           </div>
-        </div>
+        ) : (
+          /* Circular Timer Ring with Neon Visualizer Layer */
+          <div className="relative w-64 h-64 sm:w-72 sm:h-72 mb-6 flex items-center justify-center select-none z-10 animate-fade-in">
+            <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 280 280">
+              {/* Background Track */}
+              <circle
+                cx="140"
+                cy="140"
+                r={radius}
+                className="stroke-slate-800/80"
+                strokeWidth="10"
+                fill="none"
+              />
+              {/* Progress Stroke */}
+              <circle
+                cx="140"
+                cy="140"
+                r={radius}
+                stroke={activeThemeObj.ringColor}
+                strokeWidth="10"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                fill="none"
+                className="transition-all duration-500 ease-linear shadow-lg"
+              />
+            </svg>
+
+            {/* Center Display with Bold High Contrast Typography */}
+            <div className="absolute flex flex-col items-center justify-center">
+              <span className="font-timer text-6xl sm:text-7xl font-black tracking-tight text-white drop-shadow-2xl text-glow-white">
+                {timeFormatted}
+              </span>
+              <span className="mt-2 text-xs font-extrabold uppercase tracking-widest text-slate-300">
+                {activeThemeObj.title}
+              </span>
+
+              {/* Current Tree being nurtured */}
+              {mode === 'focus' && (
+                <div className="mt-1 text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                  <span>{SPECIES_INFO[selectedSpecies]?.icon}</span>
+                  <span>{t.speciesNames?.[selectedSpecies]?.shortName || SPECIES_INFO[selectedSpecies]?.name.split(' ')[0]} {t.pomodoro.treeGrowingOnPlot}</span>
+                </div>
+              )}
+
+              {/* Cycle indicator */}
+              <div className="mt-2 flex items-center gap-1.5 px-3.5 py-0.5 rounded-full bg-slate-950/90 border border-slate-700/80 text-[11px] font-bold text-slate-200 shadow-sm">
+                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>
+                  {currentCycleIndex} / {config.longBreakInterval}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Real-time Neon Waveform Audio Visualizer */}
         {showVisualizer && (
@@ -398,6 +567,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
           <SoundStatusIndicator compact={false} showHotkey={true} />
 
           <button
+            id="pomoPlayPauseBtn"
             onClick={() => setIsRunning(!isRunning)}
             className={`px-8 py-3.5 rounded-2xl font-black text-sm sm:text-base flex items-center gap-2 shadow-xl transition-all transform hover:scale-105 active:scale-95 text-white ${
               isRunning
@@ -443,15 +613,19 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
                 ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300 shadow-sm'
                 : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
             }`}
-            title="Soat tiktagi ovozi (Tick-Tock)"
+            title={t.pomodoro.tickSoundTooltip}
           >
             <Radio className="w-5 h-5" />
           </button>
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition"
-            title="Sozlamalar"
+            className={`p-3.5 rounded-2xl border transition ${
+              showSettings
+                ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300 shadow-sm'
+                : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white'
+            }`}
+            title={t.pomodoro.settingsTooltip}
           >
             <Settings2 className="w-5 h-5" />
           </button>
@@ -461,12 +635,12 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
         {showSettings && (
           <div className="w-full max-w-lg mt-8 pt-6 border-t border-slate-800 z-10 animate-fade-in flex flex-col gap-4">
             <h4 className="font-bold text-white text-sm text-left">
-              Pomodoro Sozlamalari (Daqiqalarda)
+              {t.pomodoro.settingsHeader}
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="flex flex-col gap-1 text-left p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                <label className="text-xs font-semibold text-slate-400">🎯 Fokus (daq):</label>
+                <label className="text-xs font-semibold text-slate-400">{t.pomodoro.focusTimeLabel}</label>
                 <input
                   type="number"
                   min="1"
@@ -483,7 +657,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
               </div>
 
               <div className="flex flex-col gap-1 text-left p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                <label className="text-xs font-semibold text-slate-400">☕ Qisqa (daq):</label>
+                <label className="text-xs font-semibold text-slate-400">{t.pomodoro.shortBreakTimeLabel}</label>
                 <input
                   type="number"
                   min="1"
@@ -500,7 +674,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
               </div>
 
               <div className="flex flex-col gap-1 text-left p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                <label className="text-xs font-semibold text-slate-400">🌴 Katta (daq):</label>
+                <label className="text-xs font-semibold text-slate-400">{t.pomodoro.longBreakTimeLabel}</label>
                 <input
                   type="number"
                   min="1"
@@ -542,7 +716,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
         )}
       </div>
 
-      {/* Completed Sessions Summary Strip */}
+      {/* Completed Sessions & Forest Summary Strip */}
       <div className="rounded-3xl backdrop-blur-xl bg-slate-900/80 border border-indigo-500/20 p-5 sm:p-6 shadow-xl flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
@@ -553,23 +727,34 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
               {t.pomodoro.completedCycles}
             </h4>
             <p className="text-xs text-slate-400">
-              Bugungi kunda jami {completedSessions * config.focusTime} daqiqa chuqur fokus vaqti
-              sarflandi.
+              {t.pomodoro.completedDesc
+                .replace('{mins}', String(completedSessions * config.focusTime))
+                .replace('{trees}', String(aliveTreesCount))}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
+          {onOpenGardenModal && (
+            <button
+              onClick={onOpenGardenModal}
+              className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 transition flex items-center gap-1.5"
+            >
+              <TreePine className="w-4 h-4" />
+              <span>{t.pomodoro.viewGardenBtn}</span>
+            </button>
+          )}
+
           <div className="text-right">
             <span className="font-mono text-2xl sm:text-3xl font-extrabold text-indigo-400">
               {completedSessions}
             </span>
-            <span className="text-xs text-slate-400 block">Sessiya</span>
+            <span className="text-xs text-slate-400 block">{t.pomodoro.sessionsCountLabel}</span>
           </div>
 
           <button
             onClick={() => {
-              if (confirm('Fokus sessiyalari hisoblagichini tozalashni xohlaysizmi?')) {
+              if (confirm(t.pomodoro.clearConfirm)) {
                 setCompletedSessions(0);
                 localStorage.removeItem('vaqt_pomo_sessions');
               }

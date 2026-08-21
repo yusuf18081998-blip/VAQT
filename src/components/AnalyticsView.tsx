@@ -33,6 +33,7 @@ interface AnalyticsViewProps {
   plantedTrees: PlantedTree[];
   tasks: TaskItem[];
   onDataImported?: () => void;
+  onOpenGardenModal?: () => void;
 }
 
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
@@ -40,6 +41,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   plantedTrees,
   tasks,
   onDataImported,
+  onOpenGardenModal,
 }) => {
   const t = TRANSLATIONS[lang];
   const [history, setHistory] = useState<any[]>([]);
@@ -124,7 +126,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     a.download = `vaqt_backup_${todayStr}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('JSON zaxira fayli yuklab olindi!');
+    showToast(
+      lang === 'uz'
+        ? 'JSON zaxira fayli yuklab olindi!'
+        : lang === 'ru'
+        ? 'Резервная копия JSON успешно скачана!'
+        : 'JSON backup file downloaded!'
+    );
   };
 
   // EXPORT TO CSV
@@ -141,7 +149,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     a.download = `vaqt_analytics_${todayStr}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('CSV fayli Excel uchun tayyorlandi va yuklandi!');
+    showToast(
+      lang === 'uz'
+        ? 'CSV fayli Excel uchun tayyorlandi va yuklandi!'
+        : lang === 'ru'
+        ? 'CSV файл подготовлен и скачан для Excel!'
+        : 'CSV file prepared and downloaded for Excel!'
+    );
   };
 
   // IMPORT FROM JSON
@@ -174,12 +188,24 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
   // Clear history
   const handleClearHistory = () => {
-    if (window.confirm('Haqiqatan ham barcha statistikani tozalamoqchimisiz?')) {
+    const confirmPrompt =
+      lang === 'uz'
+        ? 'Haqiqatan ham barcha statistikani tozalamoqchimisiz?'
+        : lang === 'ru'
+        ? 'Вы действительно хотите очистить всю статистику?'
+        : 'Are you sure you want to clear all analytics history?';
+
+    if (window.confirm(confirmPrompt)) {
       localStorage.removeItem('pomodoro_sessions_history');
       setHistory([]);
       showToast(t.analytics.historyCleared);
     }
   };
+
+  const hourUnit = lang === 'uz' ? 'soat' : lang === 'ru' ? 'ч.' : 'hrs';
+  const treeUnit = lang === 'uz' ? 'daraxt' : lang === 'ru' ? 'дер.' : 'trees';
+  const last7DaysLabel = lang === 'uz' ? "So'nggi 7 kun" : lang === 'ru' ? 'Последние 7 дней' : 'Last 7 days';
+  const focusChartName = lang === 'uz' ? 'Fokus (Soat)' : lang === 'ru' ? 'Фокус (Часы)' : 'Focus (Hours)';
 
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 animate-fade-in text-slate-100 pb-16">
@@ -240,7 +266,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           </div>
           <span className="text-[11px] font-medium text-slate-400">{t.analytics.totalHours}</span>
           <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            {totalHours} <span className="text-sm font-normal text-indigo-400">soat</span>
+            {totalHours} <span className="text-sm font-normal text-indigo-400">{hourUnit}</span>
           </div>
         </div>
 
@@ -251,19 +277,30 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           </div>
           <span className="text-[11px] font-medium text-slate-400">{t.analytics.todayFocus}</span>
           <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            {todayHours} <span className="text-sm font-normal text-emerald-400">soat</span>
+            {todayHours} <span className="text-sm font-normal text-emerald-400">{hourUnit}</span>
           </div>
         </div>
 
         {/* Forest Trees */}
-        <div className="p-5 rounded-3xl bg-slate-900/80 backdrop-blur-md border border-slate-800 flex flex-col gap-1 relative overflow-hidden group hover:border-pink-500/50 transition">
+        <div
+          onClick={onOpenGardenModal}
+          className={`p-5 rounded-3xl bg-slate-900/80 backdrop-blur-md border border-slate-800 flex flex-col gap-1 relative overflow-hidden group hover:border-pink-500/50 transition ${
+            onOpenGardenModal ? 'cursor-pointer hover:scale-[1.02] active:scale-95' : ''
+          }`}
+          title={t.pomodoro.viewGardenBtn}
+        >
           <div className="w-9 h-9 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center mb-1">
             <Trees className="w-4 h-4" />
           </div>
           <span className="text-[11px] font-medium text-slate-400">{t.analytics.treesPlanted}</span>
           <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            {aliveTreesCount} <span className="text-sm font-normal text-pink-400">daraxt</span>
+            {aliveTreesCount} <span className="text-sm font-normal text-pink-400">{treeUnit}</span>
           </div>
+          {onOpenGardenModal && (
+            <span className="text-[10px] text-pink-400/80 group-hover:text-pink-300 flex items-center gap-1 mt-1 font-semibold">
+              {t.pomodoro.myGardenBtn} →
+            </span>
+          )}
         </div>
 
         {/* Productivity Index */}
@@ -293,7 +330,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               {t.analytics.weeklyChartTitle}
             </h3>
           </div>
-          <span className="text-xs text-slate-400 font-mono">So'nggi 7 kun</span>
+          <span className="text-xs text-slate-400 font-mono">{last7DaysLabel}</span>
         </div>
 
         <div className="h-64 sm:h-72 w-full pt-2">
@@ -324,7 +361,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <Area
                 type="monotone"
                 dataKey="hours"
-                name="Fokus (Soat)"
+                name={focusChartName}
                 stroke="#6366f1"
                 strokeWidth={3}
                 fillOpacity={1}

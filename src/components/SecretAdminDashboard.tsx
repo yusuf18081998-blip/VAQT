@@ -20,9 +20,11 @@ import {
   Lock,
   MapPin,
   Flame,
+  LogIn,
 } from 'lucide-react';
 import { AnalyticsTracker, ADMIN_EMAIL } from '../utils/analyticsTracker';
 import { AnalyticsEvent, TrackedUser, SystemAnnouncement, UserProfile } from '../types';
+import { auth, googleProvider, signInWithPopup } from '../firebase';
 
 interface SecretAdminDashboardProps {
   user: UserProfile | null;
@@ -98,12 +100,27 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
           <p className="text-xs text-slate-400 leading-relaxed">
             Bu maxfiy boshqaruv paneli faqat tizim asoschisi (<strong>{ADMIN_EMAIL}</strong>) uchun ochiq.
           </p>
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition"
-          >
-            Yopish
-          </button>
+          <div className="w-full flex flex-col gap-2.5 mt-2">
+            <button
+              onClick={async () => {
+                try {
+                  await signInWithPopup(auth, googleProvider);
+                } catch (err) {
+                  console.error('Google Sign In:', err);
+                }
+              }}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Google orqali ({ADMIN_EMAIL}) bilan kirish</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+            >
+              Yopish
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -166,6 +183,10 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
 
   const getEventBadge = (type: AnalyticsEvent['type']) => {
     switch (type) {
+      case 'login':
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/20 text-cyan-300">Google Kirish</span>;
+      case 'logout':
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/20 text-rose-300">Chiqish</span>;
       case 'visit':
         return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/20 text-blue-300">Tashrif</span>;
       case 'pomodoro_complete':

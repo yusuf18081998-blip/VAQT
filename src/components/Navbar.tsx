@@ -18,11 +18,14 @@ import {
   Keyboard,
   Sparkles,
   Palette,
+  TreePine,
 } from 'lucide-react';
-import { TabType, ThemeMode } from '../types';
+import { TabType, ThemeMode, UserProfile } from '../types';
 import { Language, TRANSLATIONS } from '../utils/translations';
 import { binauralEngine } from '../utils/binauralEngine';
 import { SoundStatusIndicator } from './SoundStatusIndicator';
+import { GoogleAuthButton } from './GoogleAuthButton';
+import { UserLocationInfo } from '../utils/locationService';
 
 interface NavbarProps {
   activeTab: TabType;
@@ -39,6 +42,12 @@ interface NavbarProps {
   toggleFullscreen: () => void;
   deferredPrompt: any;
   onInstallApp: () => void;
+  user: UserProfile | null;
+  onUserChange: (user: UserProfile | null) => void;
+  userLocation: UserLocationInfo;
+  onOpenAdminModal?: () => void;
+  onOpenGardenModal?: () => void;
+  treesCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -56,6 +65,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   toggleFullscreen,
   deferredPrompt,
   onInstallApp,
+  user,
+  onUserChange,
+  userLocation,
+  onOpenAdminModal,
+  onOpenGardenModal,
+  treesCount = 0,
 }) => {
   const t = TRANSLATIONS[lang];
   const [hasNotificationPermission, setHasNotificationPermission] = useState<boolean>(() => {
@@ -129,6 +144,23 @@ export const Navbar: React.FC<NavbarProps> = ({
           <SoundStatusIndicator compact={false} showHotkey={true} className="hidden sm:flex" />
           <SoundStatusIndicator compact={true} className="sm:hidden" />
 
+          {/* Garden Land & Planted Trees Button */}
+          {onOpenGardenModal && (
+            <button
+              onClick={onOpenGardenModal}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 hover:text-white transition flex items-center gap-1.5 text-xs font-bold shadow-md shadow-emerald-600/10 active:scale-95"
+              title={t.garden.title}
+            >
+              <TreePine className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">{t.pomodoro.myGardenBtn}</span>
+              {treesCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/30 text-[10px] text-emerald-200">
+                  {treesCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Soundscape & Visualizer Button */}
           <button
             onClick={onOpenSoundModal}
@@ -165,6 +197,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {hasNotificationPermission ? <BellRing className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
           </button>
+
+          {/* Google Sign-In & User Profile Button */}
+          <GoogleAuthButton
+            user={user}
+            onUserChange={onUserChange}
+            userLocation={userLocation}
+            onOpenAdminModal={onOpenAdminModal}
+          />
 
           {/* Language Selector Dropdown */}
           <div className="relative">
