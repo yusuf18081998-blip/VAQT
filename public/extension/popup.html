@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 280px;
+      margin: 0;
+      padding: 16px;
+      background: #0f172a;
+      color: white;
+      font-family: sans-serif;
+    }
+    h3 {
+      margin: 0 0 8px 0;
+      color: #6366f1;
+    }
+    p {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h3>🛡️ VAQT Focus Shield</h3>
+  <p>Chalg'ituvchi saytlarni bloklash rejimi avtomatik tarzda yoqilgan.</p>
+  <button id="toggle">Qulfni Faollashtirish</button>
+  <script>
+    document.getElementById('toggle').addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: 'TOGGLE_BLOCK', enabled: true });
+      alert('Chalg\'ituvchi saytlar qulflandi!');
+    });
+  </script>
+</body>
+</html>

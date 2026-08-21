@@ -10,7 +10,6 @@ import {
   Maximize2,
   Minimize2,
   TrendingUp,
-  Boxes,
   Languages,
   Bell,
   BellRing,
@@ -34,8 +33,6 @@ interface NavbarProps {
   setTheme: (theme: ThemeMode) => void;
   lang: Language;
   setLang: (lang: Language) => void;
-  is3DEnabled: boolean;
-  setIs3DEnabled: (enabled: boolean | ((prev: boolean) => boolean)) => void;
   onOpenSoundModal: () => void;
   onOpenShortcutsModal: () => void;
   isFullscreen: boolean;
@@ -57,8 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   setTheme,
   lang,
   setLang,
-  is3DEnabled,
-  setIs3DEnabled,
   onOpenSoundModal,
   onOpenShortcutsModal,
   isFullscreen,
@@ -84,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       const permission = await Notification.requestPermission();
       setHasNotificationPermission(permission === 'granted');
       if (permission === 'granted') {
-        new Notification('VAQT Cyber Pomodoro', {
+        new Notification('VAQT Pomodoro', {
           body: 'Bildirishnomalar muvaffaqiyatli faollashtirildi!',
           icon: '/icon-192.svg',
         });
@@ -118,9 +113,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/40 group-hover:scale-105 transition transform">
               <Clock className="w-5 h-5 animate-pulse" />
             </div>
-            {is3DEnabled && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
-            )}
           </div>
 
           <div>
@@ -128,8 +120,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-black text-xl tracking-wider text-white font-mono">
                 {t.appName}
               </span>
-              <span className="text-[10px] uppercase font-extrabold tracking-widest px-2 py-0.5 rounded-md bg-gradient-to-r from-indigo-500/20 to-pink-500/20 text-indigo-300 border border-indigo-500/30">
-                3D CYBER
+              <span className="text-[10px] uppercase font-extrabold tracking-widest px-2 py-0.5 rounded-md bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 border border-indigo-500/30">
+                PRO FOCUS
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
@@ -169,20 +161,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Volume2 className="w-4 h-4 text-pink-400" />
             <span className="hidden md:inline">Panel</span>
-          </button>
-
-          {/* 3D Scene Toggle */}
-          <button
-            onClick={() => setIs3DEnabled((prev) => !prev)}
-            className={`p-2 rounded-xl border transition flex items-center gap-1 text-xs font-bold ${
-              is3DEnabled
-                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-md shadow-cyan-500/20'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-            title="3D Rejimi (HotKey: 3 yoki D)"
-          >
-            <Boxes className="w-4 h-4" />
-            <span className="hidden md:inline text-[11px]">3D</span>
           </button>
 
           {/* Notifications Requester */}

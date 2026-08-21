@@ -18,9 +18,15 @@ import {
   TreePine,
   Layers,
   Leaf,
+  Shield,
+  ShieldCheck,
+  ShieldAlert,
+  Lock,
+  ExternalLink,
+  Plus,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { PomodoroMode, PomodoroConfig, PlantedTree, TreeSpecies } from '../types';
+import { PomodoroMode, PomodoroConfig, PlantedTree, TreeSpecies, FocusShieldConfig } from '../types';
 import { binauralEngine } from '../utils/binauralEngine';
 import { AudioVisualizer } from './AudioVisualizer';
 import { Language, TRANSLATIONS } from '../utils/translations';
@@ -28,6 +34,8 @@ import { AnalyticsTracker } from '../utils/analyticsTracker';
 import { detectTimezoneLocation } from '../utils/locationService';
 import { SoundStatusIndicator } from './SoundStatusIndicator';
 import { FocusTreeVisualizer, SPECIES_INFO } from './FocusTreeVisualizer';
+import { FocusShieldModal, DEFAULT_STUDY_APPS, DEFAULT_BLOCKED_DISTRACTIONS } from './FocusShieldModal';
+import { FocusLockOverlay } from './FocusLockOverlay';
 
 interface PomodoroViewProps {
   config: PomodoroConfig;
@@ -66,6 +74,29 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
   const [witherWarning, setWitherWarning] = useState<boolean>(false);
   const [leftAppCount, setLeftAppCount] = useState<number>(0);
 
+  // Focus App & Website Shield Blocker State
+  const [isShieldModalOpen, setIsShieldModalOpen] = useState<boolean>(false);
+  const [isLockOverlayOpen, setIsLockOverlayOpen] = useState<boolean>(false);
+  const [shieldConfig, setShieldConfig] = useState<FocusShieldConfig>(() => {
+    const saved = localStorage.getItem('vaqt_focus_shield_config');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return {
+      isEnabled: true,
+      strictLockout: true,
+      audioAlertOnDistraction: true,
+      allowedApps: DEFAULT_STUDY_APPS,
+      customBlockedDomains: [],
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('vaqt_focus_shield_config', JSON.stringify(shieldConfig));
+  }, [shieldConfig]);
+
   const timerRef = useRef<number | null>(null);
 
   const getModeDuration = (currentMode: PomodoroMode) => {
@@ -95,10 +126,14 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
     }
   }, [config.focusTime, config.shortBreak, config.longBreak, mode]);
 
-  // Track tab blur / app leave for tree protection
+  // Track tab blur / app leave for tree protection & Strict Lockout
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && isRunning && (mode === 'focus' || mode === 'study')) {
+        if (shieldConfig.isEnabled && shieldConfig.strictLockout) {
+          setIsLockOverlayOpen(true);
+        }
+
         setLeftAppCount((prev) => {
           const nextCount = prev + 1;
           if (nextCount >= 3) {
@@ -114,7 +149,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isRunning, mode]);
+  }, [isRunning, mode, shieldConfig]);
 
   // Main countdown effect with ticking sound
   useEffect(() => {
@@ -460,15 +495,76 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
           </div>
         )}
 
-        {/* Task Input Box */}
-        <div className="w-full max-w-md mb-4 z-10">
-          <input
-            type="text"
-            value={taskName}
-            onChange={(e) => setTaskName(e.target.value)}
-            placeholder={t.pomodoro.taskPlaceholder}
-            className="w-full text-center px-4 py-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
-          />
+        {/* Task Input Box & Focus Shield Quick Trigger */}
+        <div className="w-full max-w-lg mb-4 z-10 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+              placeholder={t.pomodoro.taskPlaceholder}
+              className="flex-1 text-center px-4 py-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+            />
+
+            {/* Focus Study Shield Modal Button */}
+            <button
+              type="button"
+              id="openFocusShieldBtn"
+              onClick={() => setIsShieldModalOpen(true)}
+              className={`px-3.5 py-2.5 rounded-2xl border transition-all flex items-center gap-1.5 text-xs font-extrabold shadow-md shrink-0 ${
+                shieldConfig.isEnabled
+                  ? 'bg-gradient-to-r from-indigo-950/90 to-emerald-950/90 border-emerald-500/40 text-emerald-300 hover:border-emerald-400 hover:scale-105'
+                  : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+              title="Fokusdan oldin dars saytlari va ilovalarini belgilash"
+            >
+              {shieldConfig.isEnabled ? (
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <ShieldAlert className="w-4 h-4 text-slate-400" />
+              )}
+              <span className="hidden sm:inline">Dars Qulfi</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">
+                {shieldConfig.allowedApps.filter((a) => a.isAllowed).length}
+              </span>
+            </button>
+          </div>
+
+          {/* Quick Active Shield Sub-Bar: Shows Allowed Apps Preview */}
+          {shieldConfig.isEnabled && (
+            <div className="p-2 rounded-2xl bg-slate-950/60 border border-emerald-500/20 flex items-center justify-between gap-2 text-xs flex-wrap">
+              <div className="flex items-center gap-1.5 text-slate-400 overflow-x-auto py-0.5 max-w-full">
+                <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1 shrink-0">
+                  <Lock className="w-3 h-3" /> Dars vositalari:
+                </span>
+                {shieldConfig.allowedApps
+                  .filter((a) => a.isAllowed)
+                  .slice(0, 4)
+                  .map((app) => (
+                    <span
+                      key={app.id}
+                      className="px-2 py-0.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-[11px] font-semibold text-emerald-200 shrink-0 flex items-center gap-1"
+                    >
+                      <span>{app.icon || '📚'}</span>
+                      <span>{app.name.split('/')[0]}</span>
+                    </span>
+                  ))}
+                {shieldConfig.allowedApps.filter((a) => a.isAllowed).length > 4 && (
+                  <span className="text-[10px] text-slate-400">
+                    +{shieldConfig.allowedApps.filter((a) => a.isAllowed).length - 4} yana
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsShieldModalOpen(true)}
+                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline shrink-0 ml-auto"
+              >
+                Tahrirlash / Qoʻshish →
+              </button>
+            </div>
+          )}
         </div>
 
         {/* MAIN TIMER DISPLAY: Either 3D Tree Visualizer on Soil Island OR Neon Circular Ring */}
@@ -631,6 +727,45 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
           </button>
         </div>
 
+        {/* Active Focus Shield Study Bar when Running */}
+        {isRunning && (mode === 'focus' || mode === 'study') && shieldConfig.isEnabled && (
+          <div className="w-full max-w-xl mt-4 p-4 rounded-3xl bg-slate-950/90 border border-emerald-500/30 shadow-2xl z-10 animate-fade-in flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-black tracking-wide text-emerald-400 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" /> DARS MAYDONI (RUXSAT ETILGAN SAYTLAR)
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
+                <Lock className="w-3 h-3" /> Chalgʻituvchilar Qulflangan
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
+              {shieldConfig.allowedApps
+                .filter((a) => a.isAllowed)
+                .map((app) => (
+                  <a
+                    key={app.id}
+                    href={app.url || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/30 hover:border-emerald-400 text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5 transition transform hover:scale-105 shrink-0 shadow-sm"
+                  >
+                    <span>{app.icon || '📖'}</span>
+                    <span>{app.name}</span>
+                    <ExternalLink className="w-3 h-3 text-slate-500" />
+                  </a>
+                ))}
+            </div>
+
+            <p className="text-[11px] text-slate-400 text-left">
+              Fokus vaqtida boshqa chalgʻituvchi saytlarga kirsangiz, VAQT qulf ekrani ishga tushadi!
+            </p>
+          </div>
+        )}
+
         {/* Settings Accordion */}
         {showSettings && (
           <div className="w-full max-w-lg mt-8 pt-6 border-t border-slate-800 z-10 animate-fade-in flex flex-col gap-4">
@@ -765,6 +900,30 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Focus Shield Modal: Choose allowed study apps & blocked websites */}
+      <FocusShieldModal
+        isOpen={isShieldModalOpen}
+        onClose={() => setIsShieldModalOpen(false)}
+        config={shieldConfig}
+        onChangeConfig={setShieldConfig}
+        lang={lang}
+        onStartFocusWithApps={() => {
+          if (!isRunning) setIsRunning(true);
+        }}
+        isFocusRunning={isRunning}
+      />
+
+      {/* Focus Lockout Overlay: Active when tab is deserted or distraction accessed */}
+      <FocusLockOverlay
+        isOpen={isLockOverlayOpen}
+        onDismiss={() => setIsLockOverlayOpen(false)}
+        taskTitle={taskName}
+        allowedApps={shieldConfig.allowedApps}
+        species={selectedSpecies}
+        leftAppCount={leftAppCount}
+        minutesRemaining={timeFormatted}
+      />
     </div>
   );
 };

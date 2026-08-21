@@ -131,3 +131,29 @@ export interface SystemAnnouncement {
   createdAt: number;
   active: boolean;
 }
+
+export interface FocusStudyApp {
+  id: string;
+  name: string;
+  url?: string;
+  icon?: string;
+  category: 'ai' | 'notes' | 'study_video' | 'coding' | 'courses' | 'docs' | 'languages' | 'design' | 'reference' | 'custom';
+  isAllowed: boolean;
+  custom?: boolean;
+}
+
+export interface BlockedDistraction {
+  id: string;
+  name: string;
+  domain: string;
+  category: 'social' | 'video' | 'gaming' | 'news';
+}
+
+export interface FocusShieldConfig {
+  isEnabled: boolean;
+  strictLockout: boolean; // qat'iy rejim: tabdan chiqilganda qulf ekrani chiqadi
+  audioAlertOnDistraction: boolean;
+  allowedApps: FocusStudyApp[];
+  customBlockedDomains: string[];
+}
+

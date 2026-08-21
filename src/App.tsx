@@ -13,7 +13,6 @@ import {
   MapPin,
   Navigation,
   X,
-  Boxes,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -36,7 +35,6 @@ import { CountdownView } from './components/CountdownView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { SoundscapeModal } from './components/SoundscapeModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
-import { Cyber3DScene } from './components/Cyber3DScene';
 import { SecretAdminDashboard } from './components/SecretAdminDashboard';
 import { BackgroundSettingsModal, PRESET_BACKGROUNDS } from './components/BackgroundSettingsModal';
 import { GardenLandModal } from './components/GardenLandModal';
@@ -60,15 +58,6 @@ export default function App() {
   }, [lang]);
 
   const t = TRANSLATIONS[lang];
-
-  // --- 3D Scene State ---
-  const [is3DEnabled, setIs3DEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('vaqt_3d_enabled') !== 'false';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('vaqt_3d_enabled', String(is3DEnabled));
-  }, [is3DEnabled]);
 
   // --- Theme Mode State ---
   const [theme, setTheme] = useState<ThemeMode>(() => {
@@ -318,12 +307,6 @@ export default function App() {
         toggleFullscreen();
       }
 
-      // Hotkey 3 or D: 3D Scene Toggle
-      if (e.key === '3' || e.key === 'd' || e.key === 'D') {
-        e.preventDefault();
-        setIs3DEnabled((prev) => !prev);
-      }
-
       // Hotkey T: Cycle Theme
       if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
@@ -391,9 +374,6 @@ export default function App() {
       className="min-h-screen w-full relative flex flex-col font-sans transition-all duration-500 overflow-x-hidden text-slate-100 selection:bg-indigo-500 selection:text-white"
       style={currentBgStyle}
     >
-      {/* 3D WebGL Three.js Cyber Background Canvas */}
-      <Cyber3DScene enabled={is3DEnabled} theme={theme} />
-
       {/* Main Content Container */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex flex-col gap-6 min-h-screen">
         {/* System Announcement Banner from Admin if active */}
@@ -430,8 +410,6 @@ export default function App() {
           setTheme={setTheme}
           lang={lang}
           setLang={setLang}
-          is3DEnabled={is3DEnabled}
-          setIs3DEnabled={setIs3DEnabled}
           onOpenSoundModal={() => setIsSoundModalOpen(true)}
           onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
           isFullscreen={isFullscreen}
@@ -494,7 +472,7 @@ export default function App() {
         {/* Subtle Footer */}
         <footer className="w-full py-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <span className="font-mono font-bold text-slate-400">VAQT 3D Cyber Edition</span>
+            <span className="font-mono font-bold text-slate-400">VAQT</span>
             <span>•</span>
             <span>{t.tagline}</span>
           </div>

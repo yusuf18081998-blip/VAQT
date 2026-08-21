@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "VAQT Focus Shield — Saytlar Qulfi",
+  "version": "1.0",
+  "description": "Fokus vaqtida darsga kirmaydigan barcha chalg'ituvchi saytlarni (Instagram, TikTok, YouTube Shorts, o'yinlar) to'liq qulflaydi.",
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "VAQT Focus Shield"
+  }
+}

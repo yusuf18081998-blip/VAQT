@@ -218,7 +218,7 @@ export interface Translations {
 export const TRANSLATIONS: Record<Language, Translations> = {
   uz: {
     appName: 'VAQT',
-    tagline: '3D Cybernetic Pomodoro & Diqqat Studiyasi',
+    tagline: 'Professional Pomodoro & Diqqat Studiyasi',
     nav: {
       pomodoro: 'Pomodoro',
       clock: 'Katta Soat',
@@ -475,7 +475,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
   },
   en: {
     appName: 'VAQT',
-    tagline: '3D Cybernetic Pomodoro & Focus Studio',
+    tagline: 'Professional Pomodoro & Focus Studio',
     nav: {
       pomodoro: 'Pomodoro',
       clock: 'Big Clock',
@@ -732,7 +732,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
   },
   ru: {
     appName: 'VAQT',
-    tagline: '3D Кибернетический Pomodoro и Студия Фокуса',
+    tagline: 'Профессиональный Pomodoro и Студия Фокуса',
     nav: {
       pomodoro: 'Помодоро',
       clock: 'Большие Часы',
