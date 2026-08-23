@@ -204,40 +204,104 @@ export const FocusShieldModal: React.FC<FocusShieldModalProps> = ({
   const allowedCount = config.allowedApps.filter((a) => a.isAllowed).length;
   const totalBlockedCount = DEFAULT_BLOCKED_DISTRACTIONS.length + config.customBlockedDomains.length;
 
-  const generateHostsBlocklist = () => {
+  const generateWindowsBat = () => {
     const domains = [
       ...DEFAULT_BLOCKED_DISTRACTIONS.map((b) => b.domain.split('/')[0]),
       ...config.customBlockedDomains,
     ];
     const unique = Array.from(new Set(domains));
-    return `# === VAQT Focus Blocker Rules ===
-# Kompyuter/Telefon darajasida chalg'ituvchi saytlarni 100% ochilmas qilib qulflash
-${unique.map((d) => `0.0.0.0 ${d}\n0.0.0.0 www.${d}`).join('\n')}
+
+    return `@echo off
+:: VAQT Focus Shield - 100% Avtomatik Qulflash Skripti
+title VAQT Focus Blocker
+echo ======================================================
+echo    VAQT: Dars vaqtida chalg'ituvchi saytlar qulflanmoqda...
+echo ======================================================
+echo.
+
+:: Admin huquqini tekshirish
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [XATOLIK] Iltimos, ushbu faylni "Administrator nomidan ishga tushiring"!
+    echo (O'ng tugmani bosib, "Run as administrator" ni tanlang)
+    echo.
+    pause
+    exit /b
+)
+
+set HOSTS_FILE=%windir%\\System32\\drivers\\etc\\hosts
+
+echo # --- VAQT_FOCUS_SHIELD_START --- >> "%HOSTS_FILE%"
+${unique.map((d) => `echo 0.0.0.0 ${d} >> "%HOSTS_FILE%"\necho 0.0.0.0 www.${d} >> "%HOSTS_FILE%"`).join('\n')}
+echo # --- VAQT_FOCUS_SHIELD_END --- >> "%HOSTS_FILE%"
+
+ipconfig /flushdns >nul 2>&1
+
+echo.
+echo ======================================================
+echo  [MUVAFFAQIYAT!] Saytlar 100% qulflandi!
+echo  Endi Instagram, TikTok va boshqa saytlarga kirib bo'lmaydi!
+echo.
+echo  Dars tugagach "vaqt-qulfni-ochish.bat" orqali qulfni ochasiz.
+echo ======================================================
+echo.
+pause
 `;
   };
 
-  const windowsCommand = `powershell -Command "Add-Content C:\\Windows\\System32\\drivers\\etc\\hosts '${generateHostsBlocklist().replace(/\n/g, '`n')}'"`;
-  const macLinuxCommand = `sudo bash -c 'echo "${generateHostsBlocklist()}" >> /etc/hosts'`;
+  const generateWindowsUnlockBat = () => {
+    return `@echo off
+:: VAQT Focus Shield - Qulfni Yechish Skripti
+title VAQT Focus Unblocker
+echo ======================================================
+echo    VAQT: Chalg'ituvchi saytlar qulfi ochilmoqda...
+echo ======================================================
+echo.
 
-  const copyBlockRules = () => {
-    navigator.clipboard.writeText(generateHostsBlocklist());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [XATOLIK] Iltimos, ushbu faylni "Administrator nomidan ishga tushiring"!
+    echo (O'ng tugmani bosib, "Run as administrator" ni tanlang)
+    echo.
+    pause
+    exit /b
+)
+
+set HOSTS_FILE=%windir%\\System32\\drivers\\etc\\hosts
+set TEMP_FILE=%temp%\\hosts_cleaned.txt
+
+powershell -Command "$content = Get-Content '%HOSTS_FILE%' -Raw; $cleaned = $content -replace '(?s)# --- VAQT_FOCUS_SHIELD_START ---.*?# --- VAQT_FOCUS_SHIELD_END ---\\r?\\n?', ''; Set-Content '%HOSTS_FILE%' $cleaned.Trim()"
+
+ipconfig /flushdns >nul 2>&1
+
+echo.
+echo ======================================================
+echo  [TABRIKLAYMIZ!] Qulf muvaffaqiyatli ochildi!
+echo  Barcha saytlarga kirish yana tiklandi.
+echo ======================================================
+echo.
+pause
+`;
   };
 
-  const copyWindowsScript = () => {
-    navigator.clipboard.writeText(windowsCommand);
-    setCopiedCmd(true);
-    setTimeout(() => setCopiedCmd(false), 2500);
-  };
-
-  const downloadBlockRules = () => {
-    const text = generateHostsBlocklist();
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const downloadLockBat = () => {
+    const text = generateWindowsBat();
+    const blob = new Blob([text], { type: 'application/bat;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'vaqt-hosts-blocklist.txt';
+    a.download = 'vaqt-saytlarni-qulflash.bat';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadUnlockBat = () => {
+    const text = generateWindowsUnlockBat();
+    const blob = new Blob([text], { type: 'application/bat;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vaqt-qulfni-ochish.bat';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -540,54 +604,76 @@ ${unique.map((d) => `0.0.0.0 ${d}\n0.0.0.0 www.${d}`).join('\n')}
               <div className="p-3.5 rounded-2xl bg-indigo-950/30 border border-indigo-500/20 text-xs text-indigo-300 flex items-start gap-2.5">
                 <Cpu className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold block mb-1 text-white">
-                    Saytlarni Brauzer va Kompyuter Darajasida 100% Qulflash (Ochib boʻlmaslik)
+                  <span className="font-bold block mb-1 text-white text-sm">
+                    Kompyuterda Saytlarni 100% Qulflash (Umuman Ochilmaydigan Qilish)
                   </span>
                   <span>
-                    Brauzer xavfsizlik qoidalariga koʻra, veb-sayt boshqa tabdagi saytlarni toʻgʻridan-toʻgʻri bloklay olmaydi. Shu sababli quyidagi 2 ta usul orqali saytlarni kompyuteringizda <strong>umuman ochilmaydigan</strong> qilib qulflashingiz mumkin:
+                    Brauzer xavfsizlik cheklovlari tufayli hech qaysi veb-sayt foydalanuvchining boshqa tablarini oʻzi yopolmaydi. Biroq quyidagi <strong>1-bosishda ishlaydigan tayyor dastur (.bat)</strong> orqali Instagram, TikTok, YouTube va oʻyinlarni kompyuteringizda <strong>100% kirib boʻlmaydigan</strong> qilib qulflashingiz mumkin!
                   </span>
                 </div>
               </div>
 
-              {/* Method 1: Instant Windows Hosts Command */}
+              {/* 1-Click Windows BAT Blockers */}
+              <div className="p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4" /> ⚡ Windows uchun 1-Bosishda Avtomatik Qulflovchi
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                    ENG OSONI
+                  </span>
+                </div>
+
+                <p className="text-[12px] text-slate-300 leading-relaxed">
+                  1. Pastdagi <strong className="text-emerald-400">"Qulflash (.bat)"</strong> tugmasini bosib faylni yuklab oling.<br />
+                  2. Fayl ustiga sichqonchaning oʻng tugmasini bosib, <strong className="text-amber-300">"Run as administrator" (Administrator nomidan ishga tushirish)</strong> ni bosing.<br />
+                  3. Barcha chalgʻituvchi saytlar brauzeringizda <strong>umuman ochilmaydi</strong>!<br />
+                  4. Dars tugagach <strong className="text-indigo-400">"Qulfni Yechish (.bat)"</strong> faylini xuddi shunday ishga tushirasiz.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={downloadLockBat}
+                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition transform hover:scale-[1.02]"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span>1. Saytlarni Qulflash (.bat) Yuklab Olish</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadUnlockBat}
+                    className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 border border-slate-700 transition"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>2. Qulfni Yechish (.bat) Yuklab Olish</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Mac / Linux Command */}
               <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                    <Terminal className="w-4 h-4" /> 1-USUL: Windows / Mac / Linux da 100% Bloklash (Hosts)
+                    <Laptop className="w-4 h-4" /> Mac va Linux uchun Terminal Buyrugʻi
                   </span>
                   <button
                     type="button"
-                    onClick={copyBlockRules}
+                    onClick={() => {
+                      const macCmd = `sudo bash -c 'echo "# --- VAQT START ---\\n0.0.0.0 instagram.com\\n0.0.0.0 tiktok.com\\n0.0.0.0 x.com\\n0.0.0.0 twitch.tv\\n# --- VAQT END ---" >> /etc/hosts' && sudo dscacheutil -flushcache`;
+                      navigator.clipboard.writeText(macCmd);
+                      setCopiedCmd(true);
+                      setTimeout(() => setCopiedCmd(false), 2500);
+                    }}
                     className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Nusxalandi!' : 'Qoidalarni Nusxalash'}</span>
+                    {copiedCmd ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedCmd ? 'Nusxalandi!' : 'Terminal buyrugʻini nusxalash'}</span>
                   </button>
                 </div>
-
-                <div className="relative rounded-xl bg-slate-900 border border-slate-800 p-2.5 font-mono text-[11px] text-slate-300 max-h-28 overflow-y-auto">
-                  <pre>{generateHostsBlocklist()}</pre>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={downloadBlockRules}
-                    className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 transition"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>.txt Faylni Yuklab Olish (Hosts)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Method 2: Browser Extension Instructions */}
-              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
-                  <Globe className="w-4 h-4" /> 2-USUL: Chrome / Brave / Edge Kengaytmasi (Extension)
-                </span>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  VAQT uchun maxsus tayyorlangan <code>Chrome Extension</code> fayllari yuklandi. Brauzeringizda <code>chrome://extensions</code> sahifasiga kirib, "Developer mode"ni yoqib, kengaytma orqali saytlarni toʻliq avtomatik qulflashingiz mumkin.
+                <p className="text-[11px] text-slate-400">
+                  Terminalni ochib ushbu buyruqni qoʻysangiz, saytlar Mac kompyuteringizda ham zudlik bilan qulflanadi.
                 </p>
               </div>
             </div>
