@@ -13,23 +13,31 @@ export const StopwatchView: React.FC = () => {
   const animationFrameRef = useRef<number | null>(null);
   const lastLapTotalRef = useRef<number>(0);
 
-  // High precision timer loop
+  // High precision, CPU-efficient timer loop
+  const lastUpdateRef = useRef<number>(0);
+
   useEffect(() => {
     if (isRunning) {
       startTimeRef.current = performance.now() - elapsedTime;
-      const updateTimer = () => {
-        setElapsedTime(performance.now() - startTimeRef.current);
+      const updateTimer = (now: number) => {
+        // Limit React re-renders to ~30-40 fps to prevent 100% CPU spikes and memory buildup
+        if (now - lastUpdateRef.current >= 30) {
+          lastUpdateRef.current = now;
+          setElapsedTime(now - startTimeRef.current);
+        }
         animationFrameRef.current = requestAnimationFrame(updateTimer);
       };
       animationFrameRef.current = requestAnimationFrame(updateTimer);
     } else {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
     }
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
     };
   }, [isRunning]);

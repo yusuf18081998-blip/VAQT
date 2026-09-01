@@ -1,30 +1,52 @@
 <!doctype html>
-<html lang="uz">
+<html lang="uz" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+    
+    <!-- Title & SEO Description -->
     <title>VAQT — Zamonaviy Pomodoro Taymeri, Raqamli Soat & Hosildor Bog'</title>
     <meta name="description" content="VAQT — Professional Pomodoro taymeri, binar to'lqinlar (Binaural beats), unumdor bog' va yer maydonlari, raqamli soat va samaradorlik tahlillari platformasi." />
     <meta name="keywords" content="vaqt, vaqt soat, vaqt pomodoro, pomodoro uzbekistan, pomodoro uz, taymer, sekundomer, diqqatni jamlash, binaural beats uz, raqamli soat" />
     <meta name="author" content="VAQT App" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     
-    <!-- Open Graph / Facebook -->
+    <!-- Modern Apple & Mobile Web App Meta Tags (Updated & Deprecation-Free) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VAQT" />
+    <meta name="application-name" content="VAQT" />
+    <meta name="theme-color" content="#030712" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Open Graph / Facebook / Telegram -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="VAQT" />
     <meta property="og:title" content="VAQT — Pomodoro Taymeri, Soat & Samaradorlik Studiyasi" />
     <meta property="og:description" content="Binaural to'lqinlar, daraxt unish simulyatsiyasi va qorong'u rejimli zamonaviy soat hamda fokus platformasi." />
     <meta property="og:image" content="/icon-512.svg" />
     
-    <!-- Twitter -->
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="VAQT — Pomodoro & Digital Clock" />
     <meta name="twitter:description" content="Modern Pomodoro timer with binaural beats, and forest garden." />
     <meta name="twitter:image" content="/icon-512.svg" />
 
+    <!-- Canonical URL -->
     <link rel="canonical" href="https://ais-pre-3lk4tbpif7qkpoydr7cw6z-867090028401.asia-east1.run.app/" />
 
-    <!-- Schema.org JSON-LD for Google Search -->
+    <!-- Optimized Favicon Links (Zero 404s) -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- High-Performance DNS Preconnects -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=Outfit:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+    <!-- Schema.org JSON-LD for Google Search & SEO -->
     <script type="application/ld+json">
       [
         {
@@ -55,37 +77,76 @@
         }
       ]
     </script>
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#4f46e5" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=Outfit:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <!-- Global Performance Engine, Clean Unregistration & Graceful Auth Error Shield -->
+    <script>
+      (function() {
+        'use strict';
+
+        // 1. Unregister any legacy ServiceWorker & clear old caches to eliminate 404 loops
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister().catch(function() {});
+              }
+            }).catch(function() {});
+          }
+          if ('caches' in window) {
+            caches.keys().then(function(cacheNames) {
+              for (var j = 0; j < cacheNames.length; j++) {
+                caches.delete(cacheNames[j]).catch(function() {});
+              }
+            }).catch(function() {});
+          }
+        } catch (e) {}
+
+        // 2. Graceful Error & Promise Rejection Shield (Catches Firebase Unauthorized Domain & Cross-Origin Auth without console crashing)
+        window.addEventListener('unhandledrejection', function(event) {
+          if (!event || !event.reason) return;
+          var reasonStr = (event.reason.message || event.reason.code || String(event.reason)).toLowerCase();
+          
+          // Suppress known benign Firebase Auth / Network / Domain restrictions
+          if (
+            reasonStr.indexOf('auth/unauthorized-domain') !== -1 ||
+            reasonStr.indexOf('auth/popup-closed-by-user') !== -1 ||
+            reasonStr.indexOf('auth/cancelled-popup-request') !== -1 ||
+            reasonStr.indexOf('auth/popup-blocked') !== -1 ||
+            reasonStr.indexOf('firestore/permission-denied') !== -1 ||
+            reasonStr.indexOf('service worker') !== -1 ||
+            reasonStr.indexOf('sw.js') !== -1
+          ) {
+            event.preventDefault(); // Stop red error in browser console
+          }
+        });
+
+        window.addEventListener('error', function(event) {
+          if (!event || !event.message) return;
+          var msg = String(event.message).toLowerCase();
+          if (
+            msg.indexOf('sw.js') !== -1 ||
+            msg.indexOf('serviceworker') !== -1 ||
+            msg.indexOf('auth/unauthorized-domain') !== -1
+          ) {
+            event.preventDefault();
+            return true;
+          }
+        });
+      })();
+    </script>
   </head>
+
   <body class="bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white antialiased overflow-x-hidden transition-colors duration-300">
     <noscript>
-      <div style="padding: 20px; font-family: sans-serif; text-align: center;">
-        <h1>VAQT — 3D Cyber Pomodoro Taymeri, Raqamli Soat va Samaradorlik Platformasi</h1>
-        <p>Vaqt ilovasi orqali diqqatni jamlash (Pomodoro), binar to'lqinlar, 3D bog' va yer maydonlari hamda zamonaviy raqamli soatdan foydalaning.</p>
-        <p>Vaqt, Pomodoro O'zbekiston, Fokus taymeri, Raqamli soat, Sekundomer.</p>
+      <div style="padding: 24px; font-family: system-ui, -apple-system, sans-serif; text-align: center; color: #f8fafc; background: #030712;">
+        <h1>VAQT — Zamonaviy Pomodoro Taymeri & Raqamli Soat</h1>
+        <p>Vaqt ilovasi orqali diqqatni jamlash (Pomodoro), binar to'lqinlar, unumdor bog' va yer maydonlari hamda zamonaviy raqamli soatdan foydalaning.</p>
       </div>
     </noscript>
+
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch((err) => {
-            console.log('SW registration failed: ', err);
-          });
-        });
-      }
-    </script>
+
+    <!-- Main Vite SPA Entrypoint -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -266,7 +266,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(t.pomodoro.sessionFinishedTitle, {
           body: `${t.pomodoro.sessionFinishedBody} Bogʻingizda yangi ${SPECIES_INFO[selectedSpecies].name} qad koʻtardi!`,
-          icon: '/icon-192.svg',
+          icon: '/favicon.svg',
         });
       }
 
@@ -292,7 +292,7 @@ export const PomodoroView: React.FC<PomodoroViewProps> = ({
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(t.pomodoro.breakFinishedTitle, {
           body: t.pomodoro.breakFinishedBody,
-          icon: '/icon-192.svg',
+          icon: '/favicon.svg',
         });
       }
 

@@ -81,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (permission === 'granted') {
         new Notification('VAQT Pomodoro', {
           body: 'Bildirishnomalar muvaffaqiyatli faollashtirildi!',
-          icon: '/icon-192.svg',
+          icon: '/favicon.svg',
         });
       }
     }
