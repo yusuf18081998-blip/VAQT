@@ -45,6 +45,8 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
   const [stats, setStats] = useState<any>(null);
   const [userSearch, setUserSearch] = useState<string>('');
   const [feedFilter, setFeedFilter] = useState<string>('all');
+  const [purgingGuests, setPurgingGuests] = useState<boolean>(false);
+  const [purgeNotice, setPurgeNotice] = useState<string | null>(null);
 
   // Broadcast state
   const [broadcastMsg, setBroadcastMsg] = useState<string>('');
@@ -71,6 +73,14 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
       setCurrentAnnouncement(ann);
     });
 
+    // 4. Boshqaruv paneli ochilganda bazadagi eski mehmonlarni avtomatik tozalash
+    AnalyticsTracker.deleteGuestData().then((count) => {
+      if (count > 0) {
+        setPurgeNotice(`${count} ta eski mehmon bazadan olib tashlandi`);
+        setTimeout(() => setPurgeNotice(null), 4000);
+      }
+    });
+
     return () => {
       unsubEvents();
       unsubUsers();
@@ -83,6 +93,18 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
     const computed = AnalyticsTracker.computeSummary(users, events);
     setStats(computed);
   }, [users, events]);
+
+  const handleManualPurgeGuests = async () => {
+    setPurgingGuests(true);
+    const count = await AnalyticsTracker.deleteGuestData();
+    setPurgingGuests(false);
+    setPurgeNotice(
+      count > 0
+        ? `${count} ta mehmon bazadan toʻliq oʻchirildi!`
+        : 'Bazada mehmonlar qolmagan, faqat haqiqiy foydalanuvchilar mavjud!'
+    );
+    setTimeout(() => setPurgeNotice(null), 4000);
+  };
 
   if (!isOpen) return null;
 
@@ -169,14 +191,28 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
+  const filteredUsers = users.filter((u) => {
+    const isGuest =
+      u.id.startsWith('guest_') ||
+      u.email === 'mehmon@vaqt.uz' ||
+      u.name.toLowerCase().includes('mehmon') ||
+      !u.email ||
+      !u.email.includes('@');
+    if (isGuest) return false;
+    return (
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.city.toLowerCase().includes(userSearch.toLowerCase())
-  );
+    );
+  });
 
   const filteredEvents = events.filter((ev) => {
+    const isGuest =
+      ev.userEmail === 'mehmon@vaqt.uz' ||
+      ev.userName.toLowerCase().includes('mehmon') ||
+      !ev.userEmail ||
+      !ev.userEmail.includes('@');
+    if (isGuest) return false;
     if (feedFilter === 'all') return true;
     return ev.type === feedFilter;
   });
@@ -542,6 +578,16 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
           {/* TAB 3: USERS DIRECTORY */}
           {activeTab === 'users' && (
             <div className="flex flex-col gap-4">
+              {purgeNotice && (
+                <div className="p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center justify-between animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>{purgeNotice}</span>
+                  </div>
+                  <button onClick={() => setPurgeNotice(null)} className="text-emerald-400 hover:text-white text-xs px-2 py-0.5">✕</button>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -553,7 +599,21 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                     className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-                <span className="text-xs text-slate-400">Jami: <strong>{filteredUsers.length}</strong> ta tashrifchi</span>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="text-xs text-slate-400">
+                    Jami: <strong className="text-white">{filteredUsers.length}</strong> ta haqiqiy foydalanuvchi
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleManualPurgeGuests}
+                    disabled={purgingGuests}
+                    className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                    title="Bazadagi barcha eski mehmon va anonim yozuvlarni tozalash"
+                  >
+                    <Trash2 className={`w-3.5 h-3.5 ${purgingGuests ? 'animate-spin' : ''}`} />
+                    <span>{purgingGuests ? 'Tozalanmoqda...' : 'Mehmonlarni Tozalash'}</span>
+                  </button>
+                </div>
               </div>
 
               {filteredUsers.length > 0 ? (
@@ -606,8 +666,12 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                   })}
                 </div>
               ) : (
-                <div className="p-8 text-center rounded-2xl bg-slate-950/40 border border-slate-800 text-slate-400 text-xs">
-                  Foydalanuvchilar topilmadi.
+                <div className="p-8 text-center rounded-2xl bg-slate-950/40 border border-slate-800 text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+                  <Users className="w-8 h-8 text-slate-600 mb-1" />
+                  <p className="font-semibold text-slate-300">Hozircha roʻyxatdan oʻtgan foydalanuvchilar yoʻq</p>
+                  <p className="text-slate-500 max-w-md">
+                    Anonim mehmonlar bazadan butunlay chiqarib tashlandi. Faqat haqiqiy Google akkaunti orqali kirgan shaxslar bu yerda koʻrinadi.
+                  </p>
                 </div>
               )}
             </div>
@@ -710,17 +774,26 @@ export const SecretAdminDashboard: React.FC<SecretAdminDashboardProps> = ({
                 <span>Statistika Faylini Yuklab Olish (.json)</span>
               </button>
 
-              <div className="mt-8 border-t border-slate-800 pt-6">
+              <div className="mt-8 border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={handleManualPurgeGuests}
+                  disabled={purgingGuests}
+                  className="px-4 py-2 rounded-xl bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30 text-xs font-bold transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{purgingGuests ? 'Tozalanmoqda...' : 'Eski Mehmonlarni Bazadan Oʻchirish'}</span>
+                </button>
+
                 <button
                   onClick={async () => {
                     if (window.confirm('Haqiqatan ham barcha loglarni Firestore bazasidan tozalab tashlamoqchimisiz?')) {
                       await AnalyticsTracker.clearAllData();
                     }
                   }}
-                  className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-bold transition flex items-center gap-2 mx-auto"
+                  className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-bold transition flex items-center gap-2"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Firestore Loglarini Tozalash</span>
+                  <span>Barcha Loglarni Tozalash</span>
                 </button>
               </div>
             </div>

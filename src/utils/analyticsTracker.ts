@@ -32,38 +32,35 @@ function getDeviceInfo(): { device: string; browser: string } {
   return { device, browser };
 }
 
-// Brauzer yoki foydalanuvchining barqaror unikal ID si
-function getVisitorId(userEmail?: string): string {
-  if (userEmail && userEmail !== 'mehmon@vaqt.uz') {
-    return `user_${userEmail.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
-  }
-  let localId = localStorage.getItem('vaqt_visitor_uuid');
-  if (!localId) {
-    localId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    localStorage.setItem('vaqt_visitor_uuid', localId);
-  }
-  return localId;
+// Foydalanuvchining barqaror unikal ID si (Faqat haqiqiy akkauntlar uchun)
+function getVisitorId(userEmail: string): string {
+  return `user_${userEmail.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
 }
 
 export class AnalyticsTracker {
   private static localEvents: AnalyticsEvent[] = [];
   private static localUsers: TrackedUser[] = [];
 
-  // Real-vaqt harakatni Firebase Firestorega yozish
+  // Real-vaqt harakatni Firebase Firestorega yozish (Faqat haqiqiy ro'yxatdan o'tgan foydalanuvchilar, mehmonlar saqlanmaydi)
   public static async trackEvent(
     type: AnalyticsEvent['type'],
     user: UserProfile | null,
     location: UserLocationInfo,
     details?: string
   ) {
+    // Mehmonlar va anonimlar bazaga kiritilmaydi
+    if (!user || !user.email || user.email === 'mehmon@vaqt.uz' || user.name?.toLowerCase().includes('mehmon')) {
+      return;
+    }
+
     const { device, browser } = getDeviceInfo();
-    const userName = user?.name || 'Mehmon (Anonim)';
-    const userEmail = user?.email || 'mehmon@vaqt.uz';
+    const userName = user.name || user.email.split('@')[0];
+    const userEmail = user.email;
     const city = location?.city || 'Toshkent';
     const country = location?.country || 'Oʻzbekiston';
     const timestamp = Date.now();
     const eventId = `ev_${timestamp}_${Math.random().toString(36).substring(2, 7)}`;
-    const visitorId = getVisitorId(user?.email);
+    const visitorId = getVisitorId(userEmail);
 
     const newEvent: AnalyticsEvent = {
       id: eventId,
@@ -83,7 +80,7 @@ export class AnalyticsTracker {
       const eventRef = doc(db, 'analytics_events', eventId);
       await setDoc(eventRef, newEvent);
     } catch (err) {
-      console.warn('Firebase event log failed, saving locally:', err);
+      console.warn('Firebase event log failed:', err);
     }
 
     // 2. Firebase Firestore "tracked_users" ga yangilash
@@ -100,7 +97,7 @@ export class AnalyticsTracker {
         id: visitorId,
         name: userName,
         email: userEmail,
-        picture: user?.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${visitorId}`,
+        picture: user.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${visitorId}`,
         city,
         country,
         firstSeen: existingUser?.firstSeen || timestamp,
@@ -119,16 +116,24 @@ export class AnalyticsTracker {
     }
   }
 
-  // Real-vaqt hodisalarni Firestore dan jonli tinglash (Admin uchun)
+  // Real-vaqt hodisalarni Firestore dan jonli tinglash (Mehmonlar chiqarib tashlanadi)
   public static subscribeEvents(callback: (events: AnalyticsEvent[]) => void) {
     try {
-      const q = query(collection(db, 'analytics_events'), orderBy('timestamp', 'desc'), limit(100));
+      const q = query(collection(db, 'analytics_events'), orderBy('timestamp', 'desc'), limit(150));
       return onSnapshot(
         q,
         (snapshot) => {
           const evs: AnalyticsEvent[] = [];
           snapshot.forEach((docSnap) => {
-            evs.push(docSnap.data() as AnalyticsEvent);
+            const data = docSnap.data() as AnalyticsEvent;
+            const isGuest =
+              data.userEmail === 'mehmon@vaqt.uz' ||
+              data.userName?.toLowerCase().includes('mehmon') ||
+              !data.userEmail ||
+              !data.userEmail.includes('@');
+            if (!isGuest) {
+              evs.push(data);
+            }
           });
           this.localEvents = evs;
           callback(evs);
@@ -144,7 +149,7 @@ export class AnalyticsTracker {
     }
   }
 
-  // Real-vaqt barcha foydalanuvchilarni Firestore dan jonli tinglash
+  // Real-vaqt barcha foydalanuvchilarni Firestore dan jonli tinglash (Faqat haqiqiy ro'yxatdan o'tgan foydalanuvchilar)
   public static subscribeUsers(callback: (users: TrackedUser[]) => void) {
     try {
       const q = query(collection(db, 'tracked_users'), orderBy('lastActive', 'desc'), limit(150));
@@ -155,9 +160,18 @@ export class AnalyticsTracker {
           const now = Date.now();
           snapshot.forEach((docSnap) => {
             const data = docSnap.data() as TrackedUser;
-            // 15 daqiqa ichida faol bo'lsa jonli onlayn
-            data.isOnline = now - data.lastActive < 1000 * 60 * 15;
-            usrs.push(data);
+            const isGuest =
+              docSnap.id.startsWith('guest_') ||
+              data.email === 'mehmon@vaqt.uz' ||
+              data.name?.toLowerCase().includes('mehmon') ||
+              !data.email ||
+              !data.email.includes('@');
+
+            if (!isGuest) {
+              // 15 daqiqa ichida faol bo'lsa jonli onlayn
+              data.isOnline = now - data.lastActive < 1000 * 60 * 15;
+              usrs.push(data);
+            }
           });
           this.localUsers = usrs;
           callback(usrs);
@@ -173,7 +187,7 @@ export class AnalyticsTracker {
     }
   }
 
-  // Real-vaqt umumiy hisob-kitoblar
+  // Real-vaqt umumiy hisob-kitoblar (Faqat haqiqiy foydalanuvchilar bo'yicha)
   public static computeSummary(users: TrackedUser[], events: AnalyticsEvent[]) {
     const now = Date.now();
     const activeUsers = users.filter((u) => now - u.lastActive < 1000 * 60 * 15).length;
@@ -200,6 +214,53 @@ export class AnalyticsTracker {
       totalTasks,
       cityMap,
     };
+  }
+
+  // Bazadagi barcha eski "Mehmon" yozuvlarini Firestore dan butunlay o'chirib tashlash
+  public static async deleteGuestData(): Promise<number> {
+    try {
+      let deletedCount = 0;
+
+      // 1. tracked_users dan mehmonlarni o'chirish
+      const usersSnap = await getDocs(collection(db, 'tracked_users'));
+      const userDeletes: Promise<void>[] = [];
+      usersSnap.forEach((docSnap) => {
+        const data = docSnap.data() as TrackedUser;
+        const isGuest =
+          docSnap.id.startsWith('guest_') ||
+          data.email === 'mehmon@vaqt.uz' ||
+          data.name?.toLowerCase().includes('mehmon') ||
+          !data.email ||
+          !data.email.includes('@');
+        if (isGuest) {
+          userDeletes.push(deleteDoc(docSnap.ref));
+          deletedCount++;
+        }
+      });
+      await Promise.all(userDeletes);
+
+      // 2. analytics_events dan mehmon yozuvlarini o'chirish
+      const evsSnap = await getDocs(collection(db, 'analytics_events'));
+      const evDeletes: Promise<void>[] = [];
+      evsSnap.forEach((docSnap) => {
+        const data = docSnap.data() as AnalyticsEvent;
+        const isGuestEvent =
+          data.userEmail === 'mehmon@vaqt.uz' ||
+          data.userName?.toLowerCase().includes('mehmon') ||
+          !data.userEmail ||
+          !data.userEmail.includes('@');
+        if (isGuestEvent) {
+          evDeletes.push(deleteDoc(docSnap.ref));
+          deletedCount++;
+        }
+      });
+      await Promise.all(evDeletes);
+
+      return deletedCount;
+    } catch (err) {
+      console.warn('Mehmonlarni bazadan tozalashda xatolik:', err);
+      return 0;
+    }
   }
 
   // Tizim e'lonini Firestore dan tinglash
