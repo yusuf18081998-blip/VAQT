@@ -38,12 +38,23 @@ import { ShortcutsModal } from './components/ShortcutsModal';
 import { SecretAdminDashboard } from './components/SecretAdminDashboard';
 import { BackgroundSettingsModal, PRESET_BACKGROUNDS } from './components/BackgroundSettingsModal';
 import { GardenLandModal } from './components/GardenLandModal';
+import { AuthBridgeView } from './components/AuthBridgeView';
 import { Language, TRANSLATIONS } from './utils/translations';
 import { binauralEngine } from './utils/binauralEngine';
 import { AnalyticsTracker, ADMIN_EMAIL } from './utils/analyticsTracker';
 import { UserLocationInfo, requestGpsLocation, detectTimezoneLocation } from './utils/locationService';
 
 export default function App() {
+  // If window is loaded as authentication bridge popup or redirect handler
+  const isAuthBridgeMode = typeof window !== 'undefined' && (
+    window.location.search.includes('auth_bridge=1') ||
+    window.location.search.includes('auth_redirect=1')
+  );
+
+  if (isAuthBridgeMode) {
+    return <AuthBridgeView />;
+  }
+
   // --- Active Tab State ---
   const [activeTab, setActiveTab] = useState<TabType>('pomodoro');
 
@@ -126,8 +137,6 @@ export default function App() {
       return null;
     }
   });
-  const [authEmail, setAuthEmail] = useState('');
-  const [authName, setAuthName] = useState('');
 
   const [userLocation, setUserLocation] = useState<UserLocationInfo>(() => {
     try {
@@ -136,6 +145,45 @@ export default function App() {
     } catch {}
     return detectTimezoneLocation();
   });
+
+  const [authEmail, setAuthEmail] = useState('');
+  const [authName, setAuthName] = useState('');
+
+  // --- Auth Bridge Receiver (for GitHub Pages / External hosts) ---
+  useEffect(() => {
+    // 1. Hash parser (e.g. #auth_user=...)
+    if (typeof window !== 'undefined' && window.location.hash.includes('auth_user=')) {
+      try {
+        const hashStr = window.location.hash.replace(/^#/, '');
+        const params = new URLSearchParams(hashStr);
+        const raw = params.get('auth_user');
+        if (raw) {
+          const profile: UserProfile = JSON.parse(decodeURIComponent(raw));
+          if (profile && profile.email) {
+            setUser(profile);
+            localStorage.setItem('vaqt_user_profile', JSON.stringify(profile));
+            AnalyticsTracker.trackEvent('login', profile, userLocation, 'Google hisobi orqali kirdi (GitHub)');
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        }
+      } catch (e) {
+        console.warn('Hash auth parse error:', e);
+      }
+    }
+
+    // 2. PostMessage listener from popup
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'VAQT_AUTH_SUCCESS' && event.data.profile) {
+        const profile: UserProfile = event.data.profile;
+        setUser(profile);
+        localStorage.setItem('vaqt_user_profile', JSON.stringify(profile));
+        AnalyticsTracker.trackEvent('login', profile, userLocation, 'Google hisobi orqali kirdi (Bridge)');
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, [userLocation]);
 
   // --- System Announcement ---
   const [systemAnnouncement, setSystemAnnouncement] = useState<SystemAnnouncement | null>(null);

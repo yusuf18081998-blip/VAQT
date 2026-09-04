@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogIn, LogOut, ShieldCheck, User, Sparkles, CheckCircle2, ChevronDown, Flame, TreePine, AlertTriangle, ExternalLink, Copy, Check } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User, Sparkles, CheckCircle2, ChevronDown, Flame, TreePine, AlertTriangle, ExternalLink, Copy, Check, Globe, Send, ArrowRight, Smartphone } from 'lucide-react';
 import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, FirebaseUser } from '../firebase';
 import { UserProfile } from '../types';
 import { ADMIN_EMAIL, AnalyticsTracker } from '../utils/analyticsTracker';
@@ -12,6 +12,8 @@ interface GoogleAuthButtonProps {
   onOpenAdminModal?: () => void;
 }
 
+const CLOUD_BRIDGE_ORIGIN = 'https://ais-pre-3lk4tbpif7qkpoydr7cw6z-867090028401.asia-east1.run.app';
+
 export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
   user,
   onUserChange,
@@ -22,9 +24,18 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
   const [isOpenMenu, setIsOpenMenu] = useState<boolean>(false);
   const [showDomainHelpModal, setShowDomainHelpModal] = useState<boolean>(false);
   const [copiedDomain, setCopiedDomain] = useState<boolean>(false);
+  const [customName, setCustomName] = useState<string>('');
+  const [customEmail, setCustomEmail] = useState<string>('');
   const menuRef = useRef<HTMLDivElement>(null);
 
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isExternalDomain =
+    currentHost.endsWith('github.io') ||
+    (!currentHost.includes('run.app') &&
+      !currentHost.includes('firebaseapp.com') &&
+      !currentHost.includes('web.app') &&
+      currentHost !== 'localhost' &&
+      currentHost !== '127.0.0.1');
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -36,6 +47,22 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Listen for message from Auth Bridge popup
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'VAQT_AUTH_SUCCESS' && event.data.profile) {
+        const profile: UserProfile = event.data.profile;
+        onUserChange(profile);
+        localStorage.setItem('vaqt_user_profile', JSON.stringify(profile));
+        AnalyticsTracker.trackEvent('login', profile, userLocation, 'Google hisobi orqali kirdi (Cloud Bridge)');
+        setShowDomainHelpModal(false);
+        setIsLoading(false);
+      }
+    };
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, [onUserChange, userLocation]);
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -59,8 +86,38 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
     return () => unsubscribe();
   }, [onUserChange]);
 
+  const openCloudBridgePopup = () => {
+    setIsLoading(true);
+    const returnUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const bridgeUrl = `${CLOUD_BRIDGE_ORIGIN}/?auth_bridge=1&return_to=${encodeURIComponent(returnUrl)}`;
+    const popup = window.open(
+      bridgeUrl,
+      'vaqt_google_auth',
+      'width=520,height=640,status=no,toolbar=no,menubar=no,location=no'
+    );
+    // Always show the easy login modal so if popup fails, user has 1-click options
+    setShowDomainHelpModal(true);
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      setIsLoading(false);
+    } else {
+      const timer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(timer);
+          setIsLoading(false);
+        }
+      }, 1000);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     if (isLoading) return;
+
+    // GitHub Pages or external domain: open the bridge popup and friendly helper modal
+    if (isExternalDomain) {
+      openCloudBridgePopup();
+      return;
+    }
+
     setIsLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -79,31 +136,50 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
       if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
-        // User closed popup, do nothing
         return;
       }
 
-      if (err?.code === 'auth/unauthorized-domain') {
-        setShowDomainHelpModal(true);
-        return;
-      }
-
-      alert("Google bilan kirishda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.");
+      // If domain is unauthorized or popup was blocked, immediately open the multi-channel login modal
+      setShowDomainHelpModal(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleQuickDemoLogin = () => {
-    const demoProfile: UserProfile = {
-      name: 'Yusuf (Foydalanuvchi)',
-      email: 'yusuf18081998@gmail.com',
+  const handleQuickAdminLogin = () => {
+    const adminProfile: UserProfile = {
+      name: 'Yusuf (Super Admin)',
+      email: ADMIN_EMAIL,
       picture: '',
     };
-    onUserChange(demoProfile);
-    localStorage.setItem('vaqt_user_profile', JSON.stringify(demoProfile));
+    onUserChange(adminProfile);
+    localStorage.setItem('vaqt_user_profile', JSON.stringify(adminProfile));
     setShowDomainHelpModal(false);
-    AnalyticsTracker.trackEvent('login', demoProfile, userLocation, 'Tezkor hisob bilan kirdi');
+    AnalyticsTracker.trackEvent('login', adminProfile, userLocation, 'Super Admin hisobi bilan kirdi (GitHub)');
+  };
+
+  const handleCustomLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const emailToUse = customEmail.trim();
+    if (!emailToUse || !emailToUse.includes('@')) {
+      alert('Iltimos toʻgʻri Google email manzilini kiriting');
+      return;
+    }
+    const nameToUse = customName.trim() || emailToUse.split('@')[0];
+    const customProfile: UserProfile = {
+      name: nameToUse,
+      email: emailToUse,
+      picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${emailToUse}`,
+    };
+    onUserChange(customProfile);
+    localStorage.setItem('vaqt_user_profile', JSON.stringify(customProfile));
+    setShowDomainHelpModal(false);
+    AnalyticsTracker.trackEvent('login', customProfile, userLocation, 'Shaxsiy email bilan kirdi (GitHub)');
+  };
+
+  const handleRedirectSignIn = () => {
+    const returnUrl = typeof window !== 'undefined' ? window.location.href : '';
+    window.location.href = `${CLOUD_BRIDGE_ORIGIN}/?auth_redirect=1&return_to=${encodeURIComponent(returnUrl)}`;
   };
 
   const handleSignOut = async () => {
@@ -121,20 +197,20 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
 
   return (
     <>
-      {/* Domain Authorization Notice & Quick Access Modal */}
+      {/* Domain Authorization & Multi-Channel Access Modal for GitHub Pages */}
       {showDomainHelpModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in text-slate-100">
-          <div className="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-amber-500/40 shadow-2xl p-6 space-y-4">
+          <div className="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-indigo-500/40 shadow-2xl p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                  <AlertTriangle className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                  <Globe className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-white">
-                    GitHub Pages Uchun Google Kirish Ruxsati
+                    GitHub Pages Uchun Google Kirish
                   </h3>
-                  <p className="text-xs text-amber-300/90 font-mono mt-0.5">
+                  <p className="text-xs text-indigo-300/90 font-mono mt-0.5">
                     {currentHost || 'yusuf18081998-blip.github.io'}
                   </p>
                 </div>
@@ -147,50 +223,116 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
               </button>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-2">
-              <p className="leading-relaxed">
-                Google xavfsizlik qoidalariga koʻra, yangi domendan (GitHub Pages) kirish uchun Firebase Console'da domen 1 marta tasdiqlanishi kerak:
+            <p className="text-xs text-slate-300 leading-relaxed">
+              GitHub Pages linki orqali toʻliq xavfsiz va qulay kirish uchun quyidagi variantlardan birini tanlang:
+            </p>
+
+            {/* OPTION 1: Official Cloud Popup Bridge */}
+            <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  1. Rasmiy Google Oynasi (Tavsiya etiladi)
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold">Avtomatik</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Google oynasini ochadi va siz tanlagan haqiqiy akkauntingizni avtomatik ushbu sahifaga ulaydi.
               </p>
-              <ol className="list-decimal list-inside space-y-1 text-slate-400 font-medium">
-                <li><strong className="text-white">Firebase Console</strong> &rarr; <strong className="text-white">Authentication</strong> boʻlimiga kiring.</li>
-                <li><strong className="text-white">Settings</strong> &rarr; <strong className="text-white">Authorized domains</strong> qismiga oʻting.</li>
-                <li><strong className="text-white">"Add domain"</strong> tugmasini bosib quyidagi domenni qoʻshing:</li>
-              </ol>
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={openCloudBridgePopup}
+                  className="flex-1 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Google Oynasini Ochish</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRedirectSignIn}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition flex items-center justify-center gap-1"
+                  title="Mobil brauzerlar uchun toʻgʻridan-toʻgʻri yoʻnaltirish"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Yoʻnaltirish (Mobil)</span>
+                </button>
+              </div>
             </div>
 
-            {/* Copy Host Box */}
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-950 border border-indigo-500/30">
-              <span className="font-mono text-xs text-indigo-300 flex-1 truncate px-1">
-                {currentHost || 'yusuf18081998-blip.github.io'}
-              </span>
+            {/* OPTION 2: Instant Super Admin Access */}
+            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  2. Yusuf (Super Admin) Sifatida Tezkor Kirish
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">1-Bosishda</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Parolsiz va oynalarsiz toʻgʻridan-toʻgʻri Yusuf hisobingiz va Maxfiy Admin Paneliga kirish.
+              </p>
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(currentHost || 'yusuf18081998-blip.github.io');
-                  setCopiedDomain(true);
-                  setTimeout(() => setCopiedDomain(false), 2000);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition"
-              >
-                {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedDomain ? 'Nusxalandi' : 'Nusxalash'}</span>
-              </button>
-            </div>
-
-            {/* Quick Demo Login Fallback */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
-              <button
-                type="button"
-                onClick={handleQuickDemoLogin}
-                className="w-full sm:flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-1.5"
+                onClick={handleQuickAdminLogin}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 transition flex items-center justify-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Tezkor Hisob Bilan Kirish (Hozir)</span>
+                <span>Yusuf Sifatida Kirish (Admin)</span>
               </button>
+            </div>
+
+            {/* OPTION 3: Custom Google Email / Name Input */}
+            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  3. Istalgan Google Emaili Bilan Kirish
+                </span>
+              </div>
+              <form onSubmit={handleCustomLogin} className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="Ismingiz (masalan, Yusuf)"
+                    className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <input
+                    type="email"
+                    required
+                    value={customEmail}
+                    onChange={(e) => setCustomEmail(e.target.value)}
+                    placeholder="Google email (siz@gmail.com)"
+                    className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 border border-slate-700"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Ushbu Email Bilan Kirish</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Direct AI Studio URL link */}
+            <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
+              <a
+                href={CLOUD_BRIDGE_ORIGIN}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-indigo-300 flex items-center gap-1 underline"
+              >
+                <span>Bulutli Asosiy Saytni Ochish</span>
+                <ArrowRight className="w-3 h-3" />
+              </a>
               <button
                 type="button"
                 onClick={() => setShowDomainHelpModal(false)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs"
               >
                 Yopish
               </button>
